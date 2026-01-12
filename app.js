@@ -84,7 +84,6 @@ async function saveToCloud(newData) {
 }
 
 // 4. LÃ“GICA DE UI
-// 4. LÃ“GICA DE UI
 function renderApp() {
     const grid = document.getElementById('designerGrid');
     if (!grid) return;
@@ -137,7 +136,7 @@ function renderApp() {
                 </div>
                 <!-- GLOBAL WINDOW FUNCTION CLICK -->
                 <button class="edit-btn" onclick="window.openModal('${member.id}')">
-                    <i class="fa-solid fa-pen"></i>
+                    <i class="fa-solid fa-pen"></i> Editar
                 </button>
             </div>
 
@@ -310,57 +309,56 @@ function showToast(msg, isError = false) {
     area.appendChild(note);
     setTimeout(() => note.remove(), 3000);
 }
- 
- / /   6 .   F U N C I O N E S   D E   E D I C I O N   D I R E C T A   ( I N L I N E )  
- w i n d o w . u p d a t e F i e l d   =   a s y n c   f u n c t i o n   ( i d ,   f i e l d ,   v a l u e )   {  
-         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
-         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
-  
-         / /   S o l o   g u a r d a r   s i   c a m b i Ã ³   a l g o   ( t r i m   p a r a   e v i t a r   e s p a c i o s   e x t r a )  
-         i f   ( t e a m [ i d x ] [ f i e l d ]   = = =   v a l u e . t r i m ( ) )   r e t u r n ;  
-  
-         t e a m [ i d x ] [ f i e l d ]   =   v a l u e . t r i m ( ) ;  
-         s h o w T o a s t ( ` G u a r d a n d o   $ { f i e l d } . . . ` ) ;  
-         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
-         s h o w T o a s t ( " G u a r d a d o " ,   f a l s e ) ;   / /   r e - c o n f i r m  
- } ;  
-  
- w i n d o w . d e l e t e P e n d i n g   =   a s y n c   f u n c t i o n   ( i d ,   i n d e x )   {  
-         i f   ( ! c o n f i r m ( " Â ¿ B o r r a r   e s t a   t a r e a ? " ) )   r e t u r n ;  
-  
-         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
-         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
-  
-         c o n s t   n e w P e n d i n g   =   [ . . . t e a m [ i d x ] . p e n d i n g ] ;  
-         n e w P e n d i n g . s p l i c e ( i n d e x ,   1 ) ;  
-         t e a m [ i d x ] . p e n d i n g   =   n e w P e n d i n g ;  
-  
-         s h o w T o a s t ( " B o r r a n d o   t a r e a . . . " ) ;  
-         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
- } ;  
-  
- w i n d o w . a d d P e n d i n g   =   a s y n c   f u n c t i o n   ( i d )   {  
-         c o n s t   t e x t   =   p r o m p t ( " N u e v a   t a r e a   p e n d i e n t e : " ) ;  
-         i f   ( ! t e x t )   r e t u r n ;  
-  
-         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
-         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
-  
-         i f   ( ! t e a m [ i d x ] . p e n d i n g )   t e a m [ i d x ] . p e n d i n g   =   [ ] ;  
-         t e a m [ i d x ] . p e n d i n g . p u s h ( t e x t ) ;  
-  
-         s h o w T o a s t ( " A Ã ± a d i e n d o   t a r e a . . . " ) ;  
-         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
- } ;  
-  
- w i n d o w . u p d a t e P e n d i n g T e x t   =   a s y n c   f u n c t i o n   ( i d ,   i n d e x ,   n e w T e x t )   {  
-         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
-         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
-  
-         i f   ( t e a m [ i d x ] . p e n d i n g [ i n d e x ]   = = =   n e w T e x t . t r i m ( ) )   r e t u r n ;  
-  
-         t e a m [ i d x ] . p e n d i n g [ i n d e x ]   =   n e w T e x t . t r i m ( ) ;  
-         s h o w T o a s t ( " A c t u a l i z a n d o   t a r e a . . . " ) ;  
-         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
- } ;  
- 
+
+// 6. FUNCIONES DE EDICION DIRECTA (INLINE)
+window.updateField = async function (id, field, value) {
+    const idx = team.findIndex(m => m.id === id);
+    if (idx === -1) return;
+
+    // Solo guardar si cambiÃ³ algo (trim para evitar espacios extra)
+    if (team[idx][field] === value.trim()) return;
+
+    team[idx][field] = value.trim();
+    showToast(`Guardando ${field}...`);
+    await saveToCloud(team);
+    showToast("Guardado", false); // re-confirm
+};
+
+window.deletePending = async function (id, index) {
+    if (!confirm("Â¿Borrar esta tarea?")) return;
+
+    const idx = team.findIndex(m => m.id === id);
+    if (idx === -1) return;
+
+    const newPending = [...team[idx].pending];
+    newPending.splice(index, 1);
+    team[idx].pending = newPending;
+
+    showToast("Borrando tarea...");
+    await saveToCloud(team);
+};
+
+window.addPending = async function (id) {
+    const text = prompt("Nueva tarea pendiente:");
+    if (!text) return;
+
+    const idx = team.findIndex(m => m.id === id);
+    if (idx === -1) return;
+
+    if (!team[idx].pending) team[idx].pending = [];
+    team[idx].pending.push(text);
+
+    showToast("AÃ±adiendo tarea...");
+    await saveToCloud(team);
+};
+
+window.updatePendingText = async function (id, index, newText) {
+    const idx = team.findIndex(m => m.id === id);
+    if (idx === -1) return;
+
+    if (team[idx].pending[index] === newText.trim()) return;
+
+    team[idx].pending[index] = newText.trim();
+    showToast("Actualizando tarea...");
+    await saveToCloud(team);
+};
