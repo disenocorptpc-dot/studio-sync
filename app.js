@@ -268,13 +268,6 @@ window.handleSave = async function (e) {
         newTeam[idx] = member;
         await saveToCloud(newTeam);
 
-        // Notificar cambios importantes (WHATSAPP GRUPO)
-        if (oldProject !== member.project) {
-            performWANotification(member, `Asignación: *${member.project}* (${member.phase})`);
-        } else if (oldDeadline !== member.deadline) {
-            performWANotification(member, `Nueva fecha: *${member.deadline}*`);
-        }
-
         closeModal();
         showToast('¡Guardado!');
     }
@@ -361,9 +354,6 @@ window.addPending = async function (id) {
 
     showToast("Añadiendo tarea...");
     await saveToCloud(team);
-
-    // Notificar pending WHATSAPP
-    performWANotification(team[idx], `Tarea pendiente: ${text}`);
 };
 
 window.updatePendingText = async function (id, index, newText) {
@@ -376,20 +366,3 @@ window.updatePendingText = async function (id, index, newText) {
     showToast("Actualizando tarea...");
     await saveToCloud(team);
 };
-
-// 7. NOTIFICACIONES WHATSAPP (Semi-Automáticas)
-async function performWANotification(member, message) {
-    // 1. Mensaje con formato
-    const fullText = `👋 @${member.name} ${message}`;
-
-    // 2. Feedback
-    showToast("💬 Abriendo WhatsApp con mensaje listo...", false);
-
-    // 3. Abrir WhatsApp Web con TEXTO PRE-LLENADO
-    // Esto ahorra el Ctrl+V
-    const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(fullText)}`;
-
-    setTimeout(() => {
-        window.open(url, '_blank');
-    }, 1000);
-}
