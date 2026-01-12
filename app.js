@@ -205,6 +205,7 @@ window.openModal = function (id) {
     document.getElementById('editPhase').value = member.phase || '';
     document.getElementById('editClient').value = member.client;
     document.getElementById('editDate').value = member.deadline;
+    document.getElementById('editEmail').value = member.email || ''; // Cargar email
 
     // Set Vacation inputs
     document.getElementById('editVacationStart').value = member.vacationStart || '';
@@ -235,10 +236,15 @@ window.handleSave = async function (e) {
         const newTeam = [...team];
         const member = { ...newTeam[idx] };
 
+        // Detectar cambios importantes para notificar
+        const oldProject = member.project;
+        const oldDeadline = member.deadline;
+
         member.project = document.getElementById('editProject').value;
         member.phase = document.getElementById('editPhase').value;
         member.client = document.getElementById('editClient').value;
         member.deadline = document.getElementById('editDate').value;
+        member.email = document.getElementById('editEmail').value; // Guardar email
 
         // Save Vacation logic
         member.vacationStart = document.getElementById('editVacationStart').value;
@@ -263,6 +269,15 @@ window.handleSave = async function (e) {
 
         newTeam[idx] = member;
         await saveToCloud(newTeam);
+
+        // Notificar si hubo cambios clave
+        if (member.email) {
+            if (oldProject !== member.project) {
+                performTeamsNotification(member, `Asignación actualizada: ${member.project} (${member.phase})`);
+            } else if (oldDeadline !== member.deadline) {
+                performTeamsNotification(member, `Fecha de entrega cambiada: ${member.deadline}`);
+            }
+        }
 
         closeModal();
         showToast('¡Guardado!');
@@ -350,6 +365,11 @@ window.addPending = async function (id) {
 
     showToast("Añadiendo tarea...");
     await saveToCloud(team);
+
+    // Notificar pending
+    if (team[idx].email) {
+        performTeamsNotification(team[idx], `Nueva tarea pendiente: ${text}`);
+    }
 };
 
 window.updatePendingText = async function (id, index, newText) {
@@ -362,3 +382,63 @@ window.updatePendingText = async function (id, index, newText) {
     showToast("Actualizando tarea...");
     await saveToCloud(team);
 };
+
+// 7. NOTIFICACIONES TEAMS
+// REEMPLAZA ESTA URL CON TU WEBHOOK REAL
+const TEAMS_WEBHOOK_URL = "";
+
+async function performTeamsNotification(member, message) {
+    if (!TEAMS_WEBHOOK_URL) {
+        console.warn("No hay Webhook configurado. Notificación simulada:", message);
+        return;
+    }
+
+    const payload = {
+        "type": "message",
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": {
+                    "type": "AdaptiveCard",
+                    "body": [
+                        {
+                            "type": "TextBlock",
+                            "size": "Medium",
+                            "weight": "Bolder",
+                            "text": "Actualización Studio Sync"
+                        },
+                        {
+                            "type": "TextBlock",
+                            "text": `Hola <at>${member.name}</at>, ${message}`,
+                            "wrap": true
+                        }
+                    ],
+                    "msteams": {
+                        "entities": [
+                            {
+                                "type": "mention",
+                                "text": `<at>${member.name}</at>`,
+                                "mentioned": {
+                                    "id": member.email,
+                                    "name": member.name
+                                }
+                            }
+                        ]
+                    },
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "version": "1.4"
+                }
+            }
+        ]
+    };
+
+    try {
+        await fetch(TEAMS_WEBHOOK_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        console.log("Notificación enviada a Teams");
+    } catch (error) {
+        console.error("Error enviando a Teams:", error);
+    }
+}
