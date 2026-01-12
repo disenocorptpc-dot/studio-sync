@@ -205,7 +205,6 @@ window.openModal = function (id) {
     document.getElementById('editPhase').value = member.phase || '';
     document.getElementById('editClient').value = member.client;
     document.getElementById('editDate').value = member.deadline;
-    document.getElementById('editEmail').value = member.email || ''; // Cargar email
 
     // Set Vacation inputs
     document.getElementById('editVacationStart').value = member.vacationStart || '';
@@ -244,7 +243,6 @@ window.handleSave = async function (e) {
         member.phase = document.getElementById('editPhase').value;
         member.client = document.getElementById('editClient').value;
         member.deadline = document.getElementById('editDate').value;
-        member.email = document.getElementById('editEmail').value; // Guardar email
 
         // Save Vacation logic
         member.vacationStart = document.getElementById('editVacationStart').value;
@@ -270,13 +268,11 @@ window.handleSave = async function (e) {
         newTeam[idx] = member;
         await saveToCloud(newTeam);
 
-        // Notificar si hubo cambios clave
-        if (member.email) {
-            if (oldProject !== member.project) {
-                performTeamsNotification(member, `Asignación actualizada: ${member.project} (${member.phase})`);
-            } else if (oldDeadline !== member.deadline) {
-                performTeamsNotification(member, `Fecha de entrega cambiada: ${member.deadline}`);
-            }
+        // Notificar cambios importantes (WHATSAPP GRUPO)
+        if (oldProject !== member.project) {
+            performWANotification(member, `Asignación: *${member.project}* (${member.phase})`);
+        } else if (oldDeadline !== member.deadline) {
+            performWANotification(member, `Nueva fecha: *${member.deadline}*`);
         }
 
         closeModal();
@@ -366,10 +362,8 @@ window.addPending = async function (id) {
     showToast("Añadiendo tarea...");
     await saveToCloud(team);
 
-    // Notificar pending
-    if (team[idx].email) {
-        performTeamsNotification(team[idx], `Nueva tarea pendiente: ${text}`);
-    }
+    // Notificar pending WHATSAPP
+    performWANotification(team[idx], `Tarea pendiente: ${text}`);
 };
 
 window.updatePendingText = async function (id, index, newText) {
@@ -383,31 +377,29 @@ window.updatePendingText = async function (id, index, newText) {
     await saveToCloud(team);
 };
 
-// 7. NOTIFICACIONES SEMI-AUTOMATICAS (Bypass de Bloqueos TI)
-// Usamos el link del chat que proporcionó el usuario
-const TEAMS_CHAT_LINK = "https://teams.microsoft.com/l/chat/19:9c1130d12651449fb82f5480b777f19e@thread.v2/conversations?context=%7B%22contextType%22%3A%22chat%22%7D";
+// 7. NOTIFICACIONES WHATSAPP (Semi-Automáticas)
+const WA_WEB_LINK = "https://web.whatsapp.com";
 
-async function performTeamsNotification(member, message) {
-    // 1. Preparamos el mensaje bonito
-    const fullText = `📢 *Actualización Studio Sync*\n\nHola ${member.name}, ${message}\n\n(Enviado desde el Dashboard)`;
+async function performWANotification(member, message) {
+    // 1. Mensaje con formato WhatsApp (*negritas*)
+    // Usamos @nombre para facilitar el etiquetado manual
+    const fullText = `👋 @${member.name} ${message}`;
 
     try {
-        // 2. Intentamos copiar al portapapeles
+        // 2. Copiar al portapapeles
         await navigator.clipboard.writeText(fullText);
 
-        // 3. Avisamos al usuario
-        showToast("📋 Mensaje copiado. Abriendo Teams...", false);
+        // 3. Feedback
+        showToast("💬 Copiado para WhatsApp...", false);
 
-        // 4. Abrimos Teams para que solo peguen (Ctrl+V)
-        // Pequeño delay para asegurar que el usuario vea el toast
+        // 4. Abrir WhatsApp Web
         setTimeout(() => {
-            window.open(TEAMS_CHAT_LINK, '_blank');
+            window.open(WA_WEB_LINK, '_blank');
         }, 1500);
 
     } catch (err) {
         console.error("Error portapapeles:", err);
-        // Si falla el copiado automático (permisos), mostramos prompt manual
-        prompt("Copia este mensaje para Teams:", fullText);
-        window.open(TEAMS_CHAT_LINK, '_blank');
+        prompt("Copia para WhatsApp:", fullText);
+        window.open(WA_WEB_LINK, '_blank');
     }
 }
