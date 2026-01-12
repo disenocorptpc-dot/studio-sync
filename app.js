@@ -84,6 +84,7 @@ async function saveToCloud(newData) {
 }
 
 // 4. LÃ“GICA DE UI
+// 4. LÃ“GICA DE UI
 function renderApp() {
     const grid = document.getElementById('designerGrid');
     if (!grid) return;
@@ -98,13 +99,21 @@ function renderApp() {
         else if (days === 0) status = { color: 'alert-red', text: 'HOY', icon: 'fa-solid fa-fire' };
         else if (days <= 2) status = { color: 'alert-yellow', text: 'URGENTE', icon: 'fa-solid fa-hourglass-half' };
 
-        // Safe pending handling
+        // Safe pending handling with DELETE button and INLINE EDIT
         const pending = Array.isArray(member.pending) ? member.pending : [];
-        const pendingHtml = pending.map(p => `
-            <li class="pending-item"><span>${p}</span> <span class="tag-next">Prox</span></li>
+        const pendingHtml = pending.map((p, index) => `
+            <li class="pending-item">
+                <span contenteditable="true" 
+                      onblur="window.updatePendingText('${member.id}', ${index}, this.innerText)"
+                      onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                      style="flex:1; margin-right:8px;">${p}</span> 
+                <button class="delete-task-btn" onclick="window.deletePending('${member.id}', ${index})" title="Eliminar tarea">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </li>
         `).join('');
 
-        // VACATION LOGIC (NUEVO)
+        // VACATION LOGIC
         let vacationHtml = '';
         if (member.vacationStart && member.vacationEnd) {
             const start = new Date(member.vacationStart + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
@@ -128,29 +137,55 @@ function renderApp() {
                 </div>
                 <!-- GLOBAL WINDOW FUNCTION CLICK -->
                 <button class="edit-btn" onclick="window.openModal('${member.id}')">
-                    <i class="fa-solid fa-pen"></i> Editar
+                    <i class="fa-solid fa-pen"></i>
                 </button>
             </div>
 
             <div class="work-box">
-                <span class="section-label">Proyecto Actual</span>
-                <span class="project-title">${member.project}</span>
-                <div style="margin-bottom:8px;">
-                    <span class="pill pill-blue">${member.phase || 'N/A'}</span>
-                </div>
-                <span class="client-name">${member.client}</span>
+                <span class="section-label">Proyecto Actual (Click para editar)</span>
+                
+                <!-- INLINE EDITABLE PROJECT -->
+                <div class="project-title" 
+                     contenteditable="true" 
+                     onblur="window.updateField('${member.id}', 'project', this.innerText)"
+                     onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                >${member.project}</div>
 
-                <table class="info-table">
+                <div style="margin-bottom:8px; margin-top:8px;">
+                    <!-- INLINE EDITABLE PHASE -->
+                    <span class="pill pill-blue" 
+                          contenteditable="true"
+                          onblur="window.updateField('${member.id}', 'phase', this.innerText)"
+                          onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                    >${member.phase || 'N/A'}</span>
+                </div>
+                
+                <!-- INLINE EDITABLE CLIENT -->
+                <span class="client-name"
+                      contenteditable="true"
+                      onblur="window.updateField('${member.id}', 'client', this.innerText)"
+                      onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                >${member.client}</span>
+
+                <table class="info-table" style="margin-top:10px;">
                     <tr>
                         <td width="40%"><span class="section-label" style="margin:0">Entrega</span></td>
-                        <td><div class="alert-badge ${status.color}"><i class="${status.icon}"></i> ${status.text}</div></td>
+                        <!-- DATE PICKER TRIGGER -->
+                         <td onclick="window.openModal('${member.id}')" style="cursor:pointer" title="Click para cambiar fecha">
+                            <div class="alert-badge ${status.color}"><i class="${status.icon}"></i> ${status.text}</div>
+                        </td>
                     </tr>
                 </table>
             </div>
 
             <div>
-                <span class="section-label">Pendientes</span>
-                <ul class="pending-list">${pendingHtml || '<li class="pending-item" style="opacity:0.5">Nada pendiente</li>'}</ul>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="section-label">Pendientes</span>
+                    <button onclick="window.addPending('${member.id}')" style="background:none; border:none; color:#3b82f6; cursor:pointer;">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+                <ul class="pending-list">${pendingHtml || '<li class="pending-item" style="opacity:0.5; font-size:12px;">Nada pendiente</li>'}</ul>
             </div>
             
             ${vacationHtml}
@@ -275,3 +310,57 @@ function showToast(msg, isError = false) {
     area.appendChild(note);
     setTimeout(() => note.remove(), 3000);
 }
+ 
+ / /   6 .   F U N C I O N E S   D E   E D I C I O N   D I R E C T A   ( I N L I N E )  
+ w i n d o w . u p d a t e F i e l d   =   a s y n c   f u n c t i o n   ( i d ,   f i e l d ,   v a l u e )   {  
+         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
+         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
+  
+         / /   S o l o   g u a r d a r   s i   c a m b i Ã ³   a l g o   ( t r i m   p a r a   e v i t a r   e s p a c i o s   e x t r a )  
+         i f   ( t e a m [ i d x ] [ f i e l d ]   = = =   v a l u e . t r i m ( ) )   r e t u r n ;  
+  
+         t e a m [ i d x ] [ f i e l d ]   =   v a l u e . t r i m ( ) ;  
+         s h o w T o a s t ( ` G u a r d a n d o   $ { f i e l d } . . . ` ) ;  
+         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
+         s h o w T o a s t ( " G u a r d a d o " ,   f a l s e ) ;   / /   r e - c o n f i r m  
+ } ;  
+  
+ w i n d o w . d e l e t e P e n d i n g   =   a s y n c   f u n c t i o n   ( i d ,   i n d e x )   {  
+         i f   ( ! c o n f i r m ( " Â ¿ B o r r a r   e s t a   t a r e a ? " ) )   r e t u r n ;  
+  
+         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
+         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
+  
+         c o n s t   n e w P e n d i n g   =   [ . . . t e a m [ i d x ] . p e n d i n g ] ;  
+         n e w P e n d i n g . s p l i c e ( i n d e x ,   1 ) ;  
+         t e a m [ i d x ] . p e n d i n g   =   n e w P e n d i n g ;  
+  
+         s h o w T o a s t ( " B o r r a n d o   t a r e a . . . " ) ;  
+         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
+ } ;  
+  
+ w i n d o w . a d d P e n d i n g   =   a s y n c   f u n c t i o n   ( i d )   {  
+         c o n s t   t e x t   =   p r o m p t ( " N u e v a   t a r e a   p e n d i e n t e : " ) ;  
+         i f   ( ! t e x t )   r e t u r n ;  
+  
+         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
+         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
+  
+         i f   ( ! t e a m [ i d x ] . p e n d i n g )   t e a m [ i d x ] . p e n d i n g   =   [ ] ;  
+         t e a m [ i d x ] . p e n d i n g . p u s h ( t e x t ) ;  
+  
+         s h o w T o a s t ( " A Ã ± a d i e n d o   t a r e a . . . " ) ;  
+         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
+ } ;  
+  
+ w i n d o w . u p d a t e P e n d i n g T e x t   =   a s y n c   f u n c t i o n   ( i d ,   i n d e x ,   n e w T e x t )   {  
+         c o n s t   i d x   =   t e a m . f i n d I n d e x ( m   = >   m . i d   = = =   i d ) ;  
+         i f   ( i d x   = = =   - 1 )   r e t u r n ;  
+  
+         i f   ( t e a m [ i d x ] . p e n d i n g [ i n d e x ]   = = =   n e w T e x t . t r i m ( ) )   r e t u r n ;  
+  
+         t e a m [ i d x ] . p e n d i n g [ i n d e x ]   =   n e w T e x t . t r i m ( ) ;  
+         s h o w T o a s t ( " A c t u a l i z a n d o   t a r e a . . . " ) ;  
+         a w a i t   s a v e T o C l o u d ( t e a m ) ;  
+ } ;  
+ 
