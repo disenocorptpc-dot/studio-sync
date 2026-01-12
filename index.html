@@ -1,141 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diseño Industrial y 3D | Cola de Producción</title>
-    
-    <!-- Fonts: Outfit -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Icons: FontAwesome -->
+    <title>Studio Sync</title>
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Styles -->
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="dark-theme">
 
-    <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="brand">
-                <i class="fa-solid fa-cube fa-xl"></i>
-                <span>Studio Sync</span>
-            </div>
-            
-            <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-view="production">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <span>Producción</span>
-                </a>
-                <a href="#" class="nav-item" data-view="timeline">
-                    <i class="fa-solid fa-timeline"></i>
-                    <span>Cronograma</span>
-                </a>
-                <a href="#" class="nav-item" data-view="fabrication">
-                    <i class="fa-solid fa-print"></i>
-                    <span>Fabricación 3D</span>
-                </a>
-            </nav>
+<body>
+    <header class="app-header">
+        <div class="brand">
+            <h1>Diseño <span class="accent">Industrial y 3D</span></h1>
+        </div>
+        <button class="action-btn" onclick="location.reload()">↻ Actualizar</button>
+    </header>
 
-            <div class="user-profile">
-                <div class="avatar-sm">
-                    <img src="https://ui-avatars.com/api/?name=Admin&background=random" alt="User">
-                </div>
-                <div class="user-info">
-                    <span class="name">Admin</span>
-                    <span class="role">Lead Designer</span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <header class="top-bar">
-                <div class="page-title">
-                    <h1>Diseño Industrial y 3D</h1>
-                    <span class="subtitle">Cola de Producción | Estado Actual</span>
-                </div>
-                
-                <div class="actions">
-                    <button class="btn btn-primary" onclick="window.addNewCard()">
-                        <i class="fa-solid fa-plus"></i>
-                        Nuevo Diseñador
-                    </button>
-                    <button class="btn btn-secondary" onclick="window.toggleView()">
-                        <i class="fa-solid fa-list"></i>
-                    </button>
-                    <div id="sync-status" class="sync-indicator">
-                        <i class="fa-solid fa-cloud"></i>
-                        <span class="status-text">Local</span>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Grid Container -->
-            <div id="designer-grid" class="designer-grid">
-                <!-- Cards will be injected here via JS -->
-            </div>
-        </main>
+    <!-- LOADING STATE (Para que no se vea negro al inicio) -->
+    <div id="loading-message" style="text-align:center; color:#6b7280; margin-top:50px;">
+        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px; margin-bottom:10px;"></i>
+        <p>Conectando con la nube...</p>
     </div>
 
-    <!-- Edit Modal -->
-    <div id="edit-modal" class="modal">
-        <div class="modal-content glass-panel">
+    <!-- ERROR CONTAINER -->
+    <div id="error-container" style="color: #ef4444; text-align: center; display: none; padding: 20px;"></div>
+
+    <main class="designers-grid" id="designerGrid">
+        <!-- JS fills this -->
+    </main>
+
+    <!-- FIXED MODAL STRUCTURE -->
+    <div id="editModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
             <div class="modal-header">
-                <h2>Actualizar Estado</h2>
-                <button class="close-btn" onclick="window.closeModal()">&times;</button>
+                <h3>Editar Estado</h3>
+                <button type="button" class="close-btn" onclick="closeModal()">×</button>
             </div>
-            <form id="edit-form">
-                <input type="hidden" id="edit-id">
-                
+            <form id="editForm" onsubmit="handleSave(event)">
+                <input type="hidden" id="editId">
                 <div class="form-group">
-                    <label>Diseñador</label>
-                    <input type="text" id="edit-name" readonly class="readonly-input">
+                    <label>Proyecto Actual</label>
+                    <input type="text" id="editProject" required>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Proyecto Actual</label>
-                        <input type="text" id="edit-project" required>
+                <!-- NEW: PHASE FIELD -->
+                <div class="form-group">
+                    <label>Fase del Proyecto</label>
+                    <input type="text" id="editPhase" placeholder="Ej: Bocetaje, Render...">
+                </div>
+
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <input type="text" id="editClient">
+                </div>
+                <div class="form-group">
+                    <label>Fecha Entrega</label>
+                    <input type="date" id="editDate" required>
+                </div>
+
+                <!-- VACATIONS SECTION -->
+                <div class="form-group"
+                    style="background: rgba(255,255,255,0.05); padding:10px; border-radius:6px; margin-top:10px;">
+                    <label style="color:#60a5fa; margin-bottom:8px; display:block;"><i class="fa-solid fa-plane"></i>
+                        Próximas Vacaciones</label>
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex:1">
+                            <label style="font-size:11px; margin-bottom:4px; opacity:0.7;">Desde</label>
+                            <input type="date" id="editVacationStart" style="font-size:12px;">
+                        </div>
+                        <div style="flex:1">
+                            <label style="font-size:11px; margin-bottom:4px; opacity:0.7;">Hasta</label>
+                            <input type="date" id="editVacationEnd" style="font-size:12px;">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Fase</label>
-                        <select id="edit-phase">
-                            <option value="Bocetaje">Bocetaje</option>
-                            <option value="Modelado 3D">Modelado 3D</option>
-                            <option value="Renderizado">Renderizado</option>
-                            <option value="Ingeniería">Ingeniería</option>
-                            <option value="Planos">Planos</option>
-                            <option value="Pausa">En Pausa</option>
-                        </select>
-                    </div>
+                </div>
+
+                <!-- NEW: PHOTO UPLOAD -->
+                <div class="form-group" style="margin-top:10px;">
+                    <label>Foto de Perfil (Opcional)</label>
+                    <input type="file" id="editPhoto" accept="image/*" style="padding: 6px;">
                 </div>
 
                 <div class="form-group">
-                    <label>Entrega (Deadline)</label>
-                    <input type="date" id="edit-deadline" required>
+                    <label>Próximos Pendientes (separar con comas)</label>
+                    <input type="text" id="editPending">
                 </div>
-
-                <div class="form-group">
-                    <label>Bitácora (Avance del día)</label>
-                    <textarea id="edit-log" rows="3" placeholder="Detalles de progreso..."></textarea>
-                </div>
-
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-danger" onclick="window.deleteCard()">Eliminar</button>
-                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                    <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
+                    <button type="submit" class="btn-save">Guardar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Firebase SDK (Commented until needed, or we use dynamic import in app.js) -->
-    <!-- <script type="module" src="firebase-config.js"></script> -->
-    
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="notification-area"></div>
+
     <script type="module" src="app.js"></script>
 </body>
+
 </html>
