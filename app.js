@@ -383,62 +383,31 @@ window.updatePendingText = async function (id, index, newText) {
     await saveToCloud(team);
 };
 
-// 7. NOTIFICACIONES TEAMS
-// REEMPLAZA ESTA URL CON TU WEBHOOK REAL
-const TEAMS_WEBHOOK_URL = "";
+// 7. NOTIFICACIONES SEMI-AUTOMATICAS (Bypass de Bloqueos TI)
+// Usamos el link del chat que proporcionó el usuario
+const TEAMS_CHAT_LINK = "https://teams.microsoft.com/l/chat/19:9c1130d12651449fb82f5480b777f19e@thread.v2/conversations?context=%7B%22contextType%22%3A%22chat%22%7D";
 
 async function performTeamsNotification(member, message) {
-    if (!TEAMS_WEBHOOK_URL) {
-        console.warn("No hay Webhook configurado. Notificación simulada:", message);
-        return;
-    }
-
-    const payload = {
-        "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "content": {
-                    "type": "AdaptiveCard",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "size": "Medium",
-                            "weight": "Bolder",
-                            "text": "Actualización Studio Sync"
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": `Hola <at>${member.name}</at>, ${message}`,
-                            "wrap": true
-                        }
-                    ],
-                    "msteams": {
-                        "entities": [
-                            {
-                                "type": "mention",
-                                "text": `<at>${member.name}</at>`,
-                                "mentioned": {
-                                    "id": member.email,
-                                    "name": member.name
-                                }
-                            }
-                        ]
-                    },
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "version": "1.4"
-                }
-            }
-        ]
-    };
+    // 1. Preparamos el mensaje bonito
+    const fullText = `📢 *Actualización Studio Sync*\n\nHola ${member.name}, ${message}\n\n(Enviado desde el Dashboard)`;
 
     try {
-        await fetch(TEAMS_WEBHOOK_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        console.log("Notificación enviada a Teams");
-    } catch (error) {
-        console.error("Error enviando a Teams:", error);
+        // 2. Intentamos copiar al portapapeles
+        await navigator.clipboard.writeText(fullText);
+
+        // 3. Avisamos al usuario
+        showToast("📋 Mensaje copiado. Abriendo Teams...", false);
+
+        // 4. Abrimos Teams para que solo peguen (Ctrl+V)
+        // Pequeño delay para asegurar que el usuario vea el toast
+        setTimeout(() => {
+            window.open(TEAMS_CHAT_LINK, '_blank');
+        }, 1500);
+
+    } catch (err) {
+        console.error("Error portapapeles:", err);
+        // Si falla el copiado automático (permisos), mostramos prompt manual
+        prompt("Copia este mensaje para Teams:", fullText);
+        window.open(TEAMS_CHAT_LINK, '_blank');
     }
 }
