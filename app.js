@@ -378,28 +378,18 @@ window.updatePendingText = async function (id, index, newText) {
 };
 
 // 7. NOTIFICACIONES WHATSAPP (Semi-Automáticas)
-const WA_WEB_LINK = "https://web.whatsapp.com";
-
 async function performWANotification(member, message) {
-    // 1. Mensaje con formato WhatsApp (*negritas*)
-    // Usamos @nombre para facilitar el etiquetado manual
+    // 1. Mensaje con formato
     const fullText = `👋 @${member.name} ${message}`;
 
-    try {
-        // 2. Copiar al portapapeles
-        await navigator.clipboard.writeText(fullText);
+    // 2. Feedback
+    showToast("💬 Abriendo WhatsApp con mensaje listo...", false);
 
-        // 3. Feedback
-        showToast("💬 Copiado para WhatsApp...", false);
+    // 3. Abrir WhatsApp Web con TEXTO PRE-LLENADO
+    // Esto ahorra el Ctrl+V
+    const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(fullText)}`;
 
-        // 4. Abrir WhatsApp Web
-        setTimeout(() => {
-            window.open(WA_WEB_LINK, '_blank');
-        }, 1500);
-
-    } catch (err) {
-        console.error("Error portapapeles:", err);
-        prompt("Copia para WhatsApp:", fullText);
-        window.open(WA_WEB_LINK, '_blank');
-    }
+    setTimeout(() => {
+        window.open(url, '_blank');
+    }, 1000);
 }
