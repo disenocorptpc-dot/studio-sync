@@ -98,10 +98,18 @@ function renderApp() {
         else if (days === 0) status = { color: 'alert-red', text: 'HOY', icon: 'fa-solid fa-fire' };
         else if (days <= 2) status = { color: 'alert-yellow', text: 'URGENTE', icon: 'fa-solid fa-hourglass-half' };
 
-        // Safe pending handling with DELETE button and INLINE EDIT
+        // Safe pending handling with DRAG AND DROP
         const pending = Array.isArray(member.pending) ? member.pending : [];
         const pendingHtml = pending.map((p, index) => `
-            <li class="pending-item">
+            <li class="pending-item" 
+                draggable="true"
+                ondragstart="window.dragStart(event, '${member.id}', ${index})"
+                ondragover="window.dragOver(event)"
+                ondrop="window.dragDrop(event, '${member.id}', ${index})"
+                ondragenter="this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+            >
+                <i class="fa-solid fa-grip-vertical" style="color:rgba(255,255,255,0.2); margin-right:8px; cursor:grab;"></i>
                 <span contenteditable="true" 
                       onblur="window.updatePendingText('${member.id}', ${index}, this.innerText)"
                       onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
@@ -179,7 +187,7 @@ function renderApp() {
 
             <div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="section-label">Pendientes</span>
+                    <span class="section-label">Pendientes (Arrastrar para ordenar)</span>
                     <button onclick="window.addPending('${member.id}')" style="background:none; border:none; color:#3b82f6; cursor:pointer;">
                         <i class="fa-solid fa-plus"></i>
                     </button>
@@ -365,4 +373,52 @@ window.updatePendingText = async function (id, index, newText) {
     team[idx].pending[index] = newText.trim();
     showToast("Actualizando tarea...");
     await saveToCloud(team);
+};
+
+// 7. DRAG AND DROP LOGIC
+let draggedItem = null;
+
+window.dragStart = function (event, memberId, index) {
+    draggedItem = { memberId, index };
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+};
+
+window.dragOver = function (event) {
+    event.preventDefault(); // Necessary to allow dropping
+    event.dataTransfer.dropEffect = 'move';
+};
+
+window.dragDrop = async function (event, targetMemberId, targetIndex) {
+    event.preventDefault();
+    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+
+    if (!draggedItem) return;
+
+    // Only allow reordering within the same list for now
+    if (draggedItem.memberId !== targetMemberId) {
+        showToast("Solo se puede reordenar dentro de la misma tarjeta", true);
+        return;
+    }
+
+    if (draggedItem.index === targetIndex) return;
+
+    const idx = team.findIndex(m => m.id === draggedItem.memberId);
+    if (idx === -1) return;
+
+    const member = team[idx];
+    const newPending = [...member.pending];
+
+    // Move item
+    const itemToMove = newPending[draggedItem.index];
+    newPending.splice(draggedItem.index, 1);
+    newPending.splice(targetIndex, 0, itemToMove);
+
+    team[idx].pending = newPending;
+
+    // Save to cloud
+    showToast("Reordenando...");
+    await saveToCloud(team);
+    draggedItem = null;
 };
