@@ -4,105 +4,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Studio Sync</title>
+    <title>Studio Sync | Production Deck</title>
+    <!-- Actualizado con el nuevo icono proporcionado por el usuario -->
     <link rel="icon" type="image/png" href="favicon.png">
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Rajdhani:wght@500;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        #app-container {
+            pointer-events: none;
+        }
+
+        .dashboard-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            gap: 2rem;
+            padding: 2rem;
+            height: calc(100vh - 80px);
+            pointer-events: auto;
+            align-items: flex-start;
+        }
+
+        #multiview-canvas {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .project-card {
+            flex: 0 0 380px;
+            width: 380px;
+            background: rgba(20, 20, 30, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 2;
+            min-height: 500px;
+            pointer-events: auto !important;
+        }
+
+        .project-card:hover {
+            border-color: rgba(0, 243, 255, 0.3);
+            transform: translateY(-5px);
+        }
+
+        .viewer-3d-container {
+            width: 100%;
+            height: 250px;
+            background: radial-gradient(circle at center, #2a2a35 0%, #15151a 100%);
+            position: relative;
+        }
+
+        /* MOBILE OPTIMIZATIONS (Adaptive Feed) */
+        @media (max-width: 1024px) {
+            .top-bar {
+                flex-direction: column;
+                gap: 10px;
+                height: auto;
+                padding: 1rem;
+            }
+
+            .dashboard-grid {
+                display: flex;
+                flex-direction: column;
+                flex-wrap: nowrap;
+                overflow-x: hidden;
+                overflow-y: auto;
+                scroll-snap-type: none;
+                gap: 2rem;
+                padding: 1rem;
+                padding-bottom: 80px;
+                height: calc(100vh - 140px);
+                align-items: center;
+            }
+
+            .project-card,
+            .add-card-btn {
+                flex: 0 0 auto !important;
+                width: 95% !important;
+                max-width: 450px !important;
+                margin-right: 0;
+                margin-bottom: 0;
+            }
+
+            .viewer-3d-container {
+                height: 250px;
+            }
+
+            h1 {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <header class="app-header">
-        <div class="brand">
-            <h1>Diseño <span class="accent">Industrial y 3D</span></h1>
-        </div>
-        <button class="action-btn" onclick="location.reload()">↻ Actualizar</button>
-    </header>
-
-    <!-- LOADING STATE (Para que no se vea negro al inicio) -->
-    <div id="loading-message" style="text-align:center; color:#6b7280; margin-top:50px;">
-        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px; margin-bottom:10px;"></i>
-        <p>Conectando con la nube...</p>
-    </div>
-
-    <!-- ERROR CONTAINER -->
-    <div id="error-container" style="color: #ef4444; text-align: center; display: none; padding: 20px;"></div>
-
-    <main class="designers-grid" id="designerGrid">
-        <!-- JS fills this -->
-    </main>
-
-    <!-- FIXED MODAL STRUCTURE -->
-    <div id="editModal" class="modal-overlay" style="display:none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Editar Estado</h3>
-                <button type="button" class="close-btn" onclick="closeModal()">×</button>
+    <canvas id="multiview-canvas"></canvas>
+    <div id="app-container" style="padding: 0; width: 100%;">
+        <header class="glass-panel top-bar">
+            <div class="logo-section">
+                <!-- Se podría usar el icono también aquí como logo si se desea -->
+                <img src="favicon.png" alt="Logo" style="height: 32px; width: auto; margin-right: 10px;">
+                <div class="status-indicator webgl-active"></div>
+                <h1>Diseño Industrial y 3D <span class="accent-text">| Cola de producción</span></h1>
             </div>
-            <form id="editForm" onsubmit="handleSave(event)">
-                <input type="hidden" id="editId">
-                <div class="form-group">
-                    <label>Proyecto Actual</label>
-                    <input type="text" id="editProject" required>
-                </div>
-
-                <!-- NEW: PHASE FIELD -->
-                <div class="form-group">
-                    <label>Fase del Proyecto</label>
-                    <input type="text" id="editPhase" placeholder="Ej: Bocetaje, Render...">
-                </div>
-
-                <div class="form-group">
-                    <label>Cliente</label>
-                    <input type="text" id="editClient">
-                </div>
-                <div class="form-group">
-                    <label>Fecha Entrega</label>
-                    <input type="date" id="editDate" required>
-                </div>
-
-
-
-                <!-- VACATIONS SECTION -->
-                <div class="form-group"
-                    style="background: rgba(255,255,255,0.05); padding:10px; border-radius:6px; margin-top:10px;">
-                    <label style="color:#60a5fa; margin-bottom:8px; display:block;"><i class="fa-solid fa-plane"></i>
-                        Próximas Vacaciones</label>
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex:1">
-                            <label style="font-size:11px; margin-bottom:4px; opacity:0.7;">Desde</label>
-                            <input type="date" id="editVacationStart" style="font-size:12px;">
-                        </div>
-                        <div style="flex:1">
-                            <label style="font-size:11px; margin-bottom:4px; opacity:0.7;">Hasta</label>
-                            <input type="date" id="editVacationEnd" style="font-size:12px;">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- NEW: PHOTO UPLOAD -->
-                <div class="form-group" style="margin-top:10px;">
-                    <label>Foto de Perfil (Opcional)</label>
-                    <input type="file" id="editPhoto" accept="image/*" style="padding: 6px;">
-                </div>
-
-                <div class="form-group">
-                    <label>Próximos Pendientes (separar con comas)</label>
-                    <input type="text" id="editPending">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
-                    <button type="submit" class="btn-save">Guardar</button>
-                </div>
-            </form>
-        </div>
+            <div class="meta-info">
+                <button class="btn btn-secondary" onclick="addProject()">+ AÑADIR</button>
+            </div>
+        </header>
+        <main class="dashboard-grid" id="card-grid"></main>
     </div>
-
-    <!-- TOAST NOTIFICATIONS -->
-    <div id="notification-area"></div>
-
-    <script type="module" src="app.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+            }
+        }
+    </script>
+    <script type="module" src="app.js?v=cachebust"></script>
 </body>
 
 </html>

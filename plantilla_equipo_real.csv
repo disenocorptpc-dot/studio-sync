@@ -1,7 +1,0 @@
-Proyecto,Cliente,Responsable,Rol,Fase Actual,Progreso,Fecha Entrega,Días Restantes (Cálculo),Semáforo (Estado)
-Colección Sillas 2025,Muebles MX,Homero,Diseñador Industrial,Bocetaje Conceptual,30%,2025-12-30,=DIAS(G2;HOY()),=SI(H2<0;"ATRASADO";SI(H2<=3;"URGENTE";"A TIEMPO"))
-Renderizado Campaña Otoño,Agencia Beta,Michelle,Diseñadora 3D,Texturizado,65%,2025-12-31,=DIAS(G3;HOY()),=SI(H3<0;"ATRASADO";SI(H3<=3;"URGENTE";"A TIEMPO"))
-Carcasa Dispositivo Médico,MedTech,Maite,Diseñador Industrial,Modelado CAD,80%,2026-01-15,=DIAS(G4;HOY()),=SI(H4<0;"ATRASADO";SI(H4<=3;"URGENTE";"A TIEMPO"))
-Animación Ensamble,TechCorp,Michelle,Diseñadora 3D,Rendering Final,90%,2025-12-29,=DIAS(G5;HOY()),=SI(H5<0;"ATRASADO";SI(H5<=3;"URGENTE";"A TIEMPO"))
-Stand Expo Construcción,Constructora Z,Homero,Diseñador Industrial,Planos Técnicos,45%,2026-01-10,=DIAS(G6;HOY()),=SI(H6<0;"ATRASADO";SI(H6<=3;"URGENTE";"A TIEMPO"))
-Empaque Sustentable,EcoGoods,Maite,Diseñador Industrial,Investigación Materiales,15%,2026-01-20,=DIAS(G7;HOY()),=SI(H7<0;"ATRASADO";SI(H7<=3;"URGENTE";"A TIEMPO"))
