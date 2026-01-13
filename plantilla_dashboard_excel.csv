@@ -1,0 +1,6 @@
+Proyecto,Cliente,Responsable,Fase Actual,Progreso (%),Fecha Entrega,Días Restantes,Estado (Calculado),Notas
+Silla Ergonomica V2,ErgoTech,Alex,Renders Finales,85%,2025-12-30,=DIAS(F2;HOY()),=SI(G2<0;"🔴 ATRASADO";SI(G2<=2;"🟡 URGENTE";"🟢 A TIEMPO")),Revisar texturas
+Stand Expo 2025,TechGlobal,Sam,Modelado 3D,40%,2026-01-15,=DIAS(F3;HOY()),=SI(G3<0;"🔴 ATRASADO";SI(G3<=2;"🟡 URGENTE";"🟢 A TIEMPO")),Esperando planos del cliente
+Lámpara Modular,HomeStyle,Dany,Bocetaje,15%,2026-01-20,=DIAS(F4;HOY()),=SI(G4<0;"🔴 ATRASADO";SI(G4<=2;"🟡 URGENTE";"🟢 A TIEMPO")),Concepto inicial aprobado
+Carcase Disp. Médico,MediCare,Sam,Empaquetado,95%,2025-12-29,=DIAS(F5;HOY()),=SI(G5<0;"🔴 ATRASADO";SI(G5<=2;"🟡 URGENTE";"🟢 A TIEMPO")),Archivos listos para envío
+Mobiliario Urbano,GobCDMX,Alex,Ingeniería,60%,2026-02-01,=DIAS(F6;HOY()),=SI(G6<0;"🔴 ATRASADO";SI(G6<=2;"🟡 URGENTE";"🟢 A TIEMPO")),Validar espesores en lámina
