@@ -24,9 +24,30 @@ try {
 
 // --- 2. DATA ---
 const defaultTeam = [
-    { id: "h1", name: "Homero", role: "Diseñador Industrial", pending: ["Stand Expo"] },
-    { id: "m1", name: "Maite", role: "Diseñador Ind.", pending: ["Empaque Eco"] },
-    { id: "x1", name: "Michelle", role: "Diseñadora 3D", pending: ["Animación"] }
+    {
+        id: "h1",
+        name: "Homero",
+        role: "Diseñador Industrial",
+        hours: 0,
+        currentProject: { title: "Stand Expo", status: "En Diseño", deadline: "15 Ene", tags: ["Diseño"], urgency: "NORMAL" },
+        pendingTasks: ["Planos Técnicos", "Cotización Materiales"]
+    },
+    {
+        id: "m1",
+        name: "Maite",
+        role: "Diseñador Ind.",
+        hours: 0,
+        currentProject: { title: "Empaque Eco", status: "Prototipado", deadline: "20 Ene", tags: ["Empaque"], urgency: "URGENTE" },
+        pendingTasks: ["Renderizado"]
+    },
+    {
+        id: "x1",
+        name: "Michelle",
+        role: "Diseñadora 3D",
+        hours: 0,
+        currentProject: { title: "Animación", status: "Rendering", deadline: "30 Ene", tags: ["3D"], urgency: "NORMAL" },
+        pendingTasks: ["Modelado Personaje"]
+    }
 ];
 let team = [];
 
@@ -38,12 +59,20 @@ if (db) {
         if (docSnap.exists()) {
             team = docSnap.data().members || [];
             if (team.length === 0) saveToCloud(defaultTeam);
-            else renderApp();
+            else {
+                // Ensure legacy data has correct structure
+                team.forEach(m => {
+                    if (!m.currentProject) m.currentProject = { title: "Sin Asignar", status: "N/A", deadline: "", tags: [], urgency: "NORMAL" };
+                    if (!m.pendingTasks) m.pendingTasks = m.pending || [];
+                });
+                renderApp();
+            }
         } else {
             saveToCloud(defaultTeam);
         }
     });
 }
+
 
 // --- helper: Circular Progress SVG Generator (Vanilla Port) ---
 function getCircleProgressHTML(percentage, size = 50) {
