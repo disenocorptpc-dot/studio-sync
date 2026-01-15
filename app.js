@@ -221,7 +221,7 @@ function renderApp() {
         const progressHTML = getCircleProgressHTML(percentage);
 
         const card = document.createElement('div');
-        card.className = 'glass-panel card-hover';
+        card.className = 'glass-panel card-hover designer-card';
         card.innerHTML = `
             <div class="card-header">
                 <div style="display: flex; gap: 15px; align-items: center;">
