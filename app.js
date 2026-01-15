@@ -189,93 +189,99 @@ function renderApp() {
         const percentage = Math.min((loggedHours / 160) * 100, 100);
         const progressHTML = getCircleProgressHTML(percentage);
 
-        // Pending List (Drag & Drop)
-        const pending = Array.isArray(member.pending) ? member.pending : [];
-        const pendingHtml = pending.map((p, i) => `
-            <li class="pending-item" 
-                draggable="true"
-                ondragstart="window.dragStart(event, '${member.id}', ${i})"
-                ondragover="window.dragOver(event)"
-                ondrop="window.dragDrop(event, '${member.id}', ${i})"
-                ondragenter="this.classList.add('drag-over')"
-                ondragleave="this.classList.remove('drag-over')"
-            >
-                <i class="fa-solid fa-grip-vertical" style="color:rgba(255,255,255,0.2); margin-right:8px; cursor:grab;"></i>
-                <span contenteditable="true" 
-                      onblur="window.updatePendingText('${member.id}', ${i}, this.innerText)"
-                      onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
-                      style="flex:1; margin-right:8px;">${p}</span> 
-                <button class="delete-task-btn" onclick="window.deletePending('${member.id}', ${i})" title="Eliminar">
-                    <i class="fa-solid fa-times"></i>
-                </button>
-            </li>
-        `).join('');
-
-        // Vacation
-        let vacationHtml = '';
-        if (member.vacationStart && member.vacationEnd) {
-            const start = new Date(member.vacationStart + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-            const end = new Date(member.vacationEnd + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-            vacationHtml = `<div style="margin-top:16px; padding:10px; background:rgba(59,130,246,0.1); border-radius:8px; font-size:13px; color:#93c5fd;">
-                 <i class="fa-solid fa-plane"></i> Vacaciones: ${start} al ${end}
-             </div>`;
-        }
-
-        html += `
-        <article class="designer-card" id="card-${member.id}">
-            <div class="card-header-flex">
-                <div class="user-info-group">
-                    <img src="${member.avatar || 'https://api.dicebear.com/7.x/avataaars/svg'}" class="avatar">
-                    <div class="user-text">
-                        <h2>${member.name}</h2>
-                        <p>${member.role}</p>
+        const card = document.createElement('div');
+        card.className = 'glass-panel card-hover';
+        card.innerHTML = `
+            <div class="card-header">
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="avatar-ring">
+                        <img src="${member.avatar}" alt="${member.name}" class="avatar">
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold">${member.name}</h2>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">${member.role}</p>
                     </div>
                 </div>
-                
-                <!-- PROGRESS & EDIT CONTAINER -->
                 <div style="display: flex; gap: 15px; align-items: center;">
                     <div class="flex flex-col items-center" style="display:flex; flex-direction:column; align-items:center;">
                         ${progressHTML}
-                        <span style="font-size:10px; color:#6b7280; margin-top:4px; font-family:monospace;">${loggedHours}h</span>
+                        <span style="font-size:10px; color:#6b7280; margin-top:4px; font-family:monospace;">${loggedHours.toFixed(0)}h</span>
                     </div>
                     <button class="edit-btn" onclick="window.openModal('${member.id}')"><i class="fa-solid fa-pen"></i></button>
                 </div>
             </div>
 
-            <div class="work-box" style="margin-top:15px">
-                <span class="section-label">PROYECTO ACTUAL (CLICK PARA EDITAR)</span>
-                <div class="project-title" contenteditable="true" 
-                     onblur="window.updateField('${member.id}', 'project', this.innerText)">${member.project || 'Sin Asignar'}</div>
+            <div class="project-status mb-6">
+                <p class="text-xs text-gray-500 font-bold mb-2 uppercase tracking-wide">PROYECTO ACTUAL (CLICK PARA EDITAR)</p>
+                <div class="project-title-editor" onclick="window.editProjectTitle('${member.id}')">
+                    <h3 class="text-xl font-bold text-[#00f2ff] mb-2 truncate">${member.currentProject.title}</h3>
+                    <i class="fa-solid fa-pencil text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </div>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    ${member.currentProject.tags.map(tag =>
+            `<span class="px-2 py-1 rounded text-xs font-bold bg-[#0d1117] text-[#00f2ff] border border-[#00f2ff]/30">${tag}</span>`
+        ).join('')}
+                </div>
                 
-                <span class="pill" contenteditable="true"
-                      onblur="window.updateField('${member.id}', 'phase', this.innerText)">${member.phase || 'N/A'}</span>
-                
-                <p class="client-name" contenteditable="true"
-                   onblur="window.updateField('${member.id}', 'client', this.innerText)">${member.client || 'Cliente'}</p>
-
-                <div style="display:flex; justify-content:space-between; margin-top:10px; align-items:center;">
-                    <span class="section-label">ENTREGA</span>
-                    <div class="alert-badge ${status.color}" onclick="window.openModal('${member.id}')" style="cursor:pointer">
-                        <i class="${status.icon}"></i> ${status.text}
+                <div class="grid grid-cols-2 gap-4 text-xs text-gray-400">
+                    <div>
+                        <span class="block text-gray-600 mb-1">Dirección</span>
+                        ${member.currentProject.status}
+                    </div>
+                    <div class="text-right">
+                         <span class="block text-gray-600 mb-1">ENTREGA</span>
+                        <span class="${member.currentProject.urgency === 'URGENTE' ? 'text-black bg-[#eab308] px-2 py-0.5 rounded font-bold' : 'text-white'}">
+                            ${member.currentProject.urgency === 'URGENTE' ? '<i class="fa-solid fa-hourglass-half mr-1"></i>URGENTE' : member.currentProject.deadline}
+                        </span>
                     </div>
                 </div>
             </div>
 
-            <div style="margin-top:15px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="section-label">PENDIENTES (ARRASTRAR PARA ORDENAR)</span>
-                    <button onclick="window.addPending('${member.id}')" style="color:#3b82f6; background:none; border:none; cursor:pointer;">
+            <div class="pending-section">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">PENDIENTES (ARRASTRAR PARA ORDENAR)</p>
+                    <button class="text-blue-400 hover:text-blue-300 transition-colors" onclick="window.addPendingTask('${member.id}')">
                         <i class="fa-solid fa-plus"></i>
                     </button>
                 </div>
-                <ul class="pending-list">${pendingHtml}</ul>
+                
+                <div class="space-y-2 min-h-[50px]" ondrop="window.handleDrop(event, '${member.id}')" ondragover="window.handleDragOver(event)">
+                    ${member.pendingTasks.map((task, i) => `
+                        <div class="pending-item bg-[#0d1117] p-3 rounded border border-[#30363d] flex justify-between items-center group draggable" 
+                             draggable="true" 
+                             ondragstart="window.handleDragStart(event, '${member.id}', ${i})"
+                             data-member-id="${member.id}"
+                             data-index="${i}">
+                             
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <i class="fa-solid fa-grip-vertical text-gray-700 cursor-grab"></i>
+                                
+                                <!-- PROMOTE BUTTON (NEW) -->
+                                <button onclick="window.promoteTask('${member.id}', ${i})" 
+                                        class="text-gray-600 hover:text-[#00f2ff] transition-colors" 
+                                        title="Promover a Proyecto Actual">
+                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                                </button>
+                                
+                                <span class="truncate text-gray-300 text-sm">${task}</span>
+                            </div>
+                            
+                            <button onclick="window.removePendingTask('${member.id}', ${i})" 
+                                    class="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
-            ${vacationHtml}
-        </article>
         `;
+        container.appendChild(card);
     });
-
-    grid.innerHTML = html;
+}
+// Minimal toast function to avoid errors
+function showToast(message, isError) {
+    console.log("Toast:", message, isError ? "(Error)" : "");
+    // In a real app, you'd display a UI element here
 }
 
 // --- 4. GLOBAL HELPERS ---
@@ -300,7 +306,13 @@ if (db) {
         if (docSnap.exists()) {
             team = docSnap.data().members || [];
             if (team.length === 0) saveToCloud(defaultTeam);
-            else renderApp();
+            else {
+                renderApp();
+                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
+                // Note: The logic above already calls syncRealTimeHours on load.
+                // We can remove the old call here or make sure it uses the new db.
+                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
+            }
         } else {
             saveToCloud(defaultTeam);
         }
