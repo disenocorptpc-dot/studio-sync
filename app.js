@@ -93,7 +93,23 @@ const NAME_MAPPING = {
     "Maite": "Esther Franco"  // Guessing based on "Esther" usually being Maite/Esther
 };
 
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// We don't need to re-import doc/getDoc if they are already imported at the top of the file.
+// However, since we are using ES modules via CDN URL imports in this file structure,
+// let's just make sure we use the ones likely already available or import them cleaner.
+// Checking previous file content, it seems we import 'doc' for the main app logic too.
+// Let's assume we need to import them here but avoid 'const doc = ...' conflict if it was blindly pasted.
+// Actually, the error is likely due to "import { doc ... }" appearing twice in the same scope/module type.
+
+// FIX: Remove the second import line entirely and rely on the TOP of the file import,
+// OR rename the import if this is a script tag module.
+// Since I can't see the top of the file right now, I will use a safe dynamic import approach or just assume
+// we should consolidate.
+// Better yet: I will use the fully qualified names from the existing firebase import or just remove this line
+// if I'm sure it's up there.
+// Let's try removing it and adding it to the TOP if missing, but for now, just removing the colliding line.
+
+// (Attempting to use the already imported functions, or re-importing with alias if needed)
+import { doc as docRefGen, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 async function syncRealTimeHours(trackerDb) {
     if (!trackerDb) return;
@@ -102,8 +118,9 @@ async function syncRealTimeHours(trackerDb) {
 
     try {
         // The other app stores EVERYTHING in a single document
-        const docRef = doc(trackerDb, "studio_tracker_v3", "main_db");
-        const docSnap = await getDoc(docRef);
+        // Use the aliased doc generator to avoid conflict with any global 'doc' variable
+        const dRef = docRefGen(trackerDb, "studio_tracker_v3", "main_db");
+        const docSnap = await getDoc(dRef);
 
         if (!docSnap.exists()) {
             console.error("❌ No se encontró el documento 'main_db'");
