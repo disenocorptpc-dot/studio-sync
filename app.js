@@ -201,44 +201,13 @@ async function syncRealTimeHours(trackerDb) {
 
 // --- 3. RENDER UI ---
 function renderApp() {
-    const grid = document.getElementById('designerGrid');
-    if (!grid) return;
+    const container = document.getElementById('designerGrid');
+    if (!container) return; // Silent fail if DOM not ready
 
-    let html = '';
-    team.forEach((member, index) => {
-        const diff = new Date(member.deadline) - new Date().setHours(0, 0, 0, 0);
-        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    container.innerHTML = '';
 
-        let status = { color: 'alert-green', text: `${days} días`, icon: 'fa-regular fa-clock' };
-        if (days < 0) status = { color: 'alert-red', text: 'ATRASADO', icon: 'fa-solid fa-triangle-exclamation' };
-        else if (days <= 2) status = { color: 'alert-yellow', text: 'URGENTE', icon: 'fa-solid fa-hourglass-half' };
+    team.forEach((member, index) => { // Added index to usage
 
-        // Progress Calculation using REAL HOURS fetched from Cloud
-        const loggedHours = member.hours || 0;
-        const percentage = Math.min((loggedHours / 160) * 100, 100);
-        const progressHTML = getCircleProgressHTML(percentage);
-
-        const card = document.createElement('div');
-        card.className = 'glass-panel card-hover';
-        card.innerHTML = `
-            <div class="card-header">
-                <div style="display: flex; gap: 15px; align-items: center;">
-                    <div class="avatar-ring">
-                        <img src="${member.avatar}" alt="${member.name}" class="avatar">
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-bold">${member.name}</h2>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider">${member.role}</p>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 15px; align-items: center;">
-                    <div class="flex flex-col items-center" style="display:flex; flex-direction:column; align-items:center;">
-                        ${progressHTML}
-                        <span style="font-size:10px; color:#6b7280; margin-top:4px; font-family:monospace;">${loggedHours.toFixed(0)}h</span>
-                    </div>
-                    <button class="edit-btn" onclick="window.openModal('${member.id}')"><i class="fa-solid fa-pen"></i></button>
-                </div>
-            </div>
 
             <div class="project-status mb-6">
                 <p class="text-xs text-gray-500 font-bold mb-2 uppercase tracking-wide">PROYECTO ACTUAL (CLICK PARA EDITAR)</p>
