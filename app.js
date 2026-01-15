@@ -24,30 +24,9 @@ try {
 
 // --- 2. DATA ---
 const defaultTeam = [
-    {
-        id: "h1",
-        name: "Homero",
-        role: "Diseñador Industrial",
-        hours: 0,
-        currentProject: { title: "Stand Expo", status: "En Diseño", deadline: "15 Ene", tags: ["Diseño"], urgency: "NORMAL" },
-        pendingTasks: ["Planos Técnicos", "Cotización Materiales"]
-    },
-    {
-        id: "m1",
-        name: "Maite",
-        role: "Diseñador Ind.",
-        hours: 0,
-        currentProject: { title: "Empaque Eco", status: "Prototipado", deadline: "20 Ene", tags: ["Empaque"], urgency: "URGENTE" },
-        pendingTasks: ["Renderizado"]
-    },
-    {
-        id: "x1",
-        name: "Michelle",
-        role: "Diseñadora 3D",
-        hours: 0,
-        currentProject: { title: "Animación", status: "Rendering", deadline: "30 Ene", tags: ["3D"], urgency: "NORMAL" },
-        pendingTasks: ["Modelado Personaje"]
-    }
+    { id: "h1", name: "Homero", role: "Diseñador Industrial", pending: ["Stand Expo"] },
+    { id: "m1", name: "Maite", role: "Diseñador Ind.", pending: ["Empaque Eco"] },
+    { id: "x1", name: "Michelle", role: "Diseñadora 3D", pending: ["Animación"] }
 ];
 let team = [];
 
@@ -59,20 +38,12 @@ if (db) {
         if (docSnap.exists()) {
             team = docSnap.data().members || [];
             if (team.length === 0) saveToCloud(defaultTeam);
-            else {
-                // Ensure legacy data has correct structure
-                team.forEach(m => {
-                    if (!m.currentProject) m.currentProject = { title: "Sin Asignar", status: "N/A", deadline: "", tags: [], urgency: "NORMAL" };
-                    if (!m.pendingTasks) m.pendingTasks = m.pending || [];
-                });
-                renderApp();
-            }
+            else renderApp();
         } else {
             saveToCloud(defaultTeam);
         }
     });
 }
-
 
 // --- helper: Circular Progress SVG Generator (Vanilla Port) ---
 function getCircleProgressHTML(percentage, size = 50) {
@@ -200,15 +171,13 @@ async function syncRealTimeHours(trackerDb) {
 }
 
 // --- 3. RENDER UI ---
-// --- 3. RENDER UI ---
 function renderApp() {
-    const container = document.getElementById('designerGrid');
-    if (!container) return; // Silent fail if DOM not ready
+    const grid = document.getElementById('designerGrid');
+    if (!grid) return;
 
-    container.innerHTML = '';
-
+    let html = '';
     team.forEach((member, index) => {
-        const diff = new Date(member.currentProject.deadline) - new Date().setHours(0, 0, 0, 0);
+        const diff = new Date(member.deadline) - new Date().setHours(0, 0, 0, 0);
         const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
         let status = { color: 'alert-green', text: `${days} días`, icon: 'fa-regular fa-clock' };
@@ -220,106 +189,101 @@ function renderApp() {
         const percentage = Math.min((loggedHours / 160) * 100, 100);
         const progressHTML = getCircleProgressHTML(percentage);
 
-        const card = document.createElement('div');
-        card.className = 'glass-panel card-hover designer-card'; // Main class restored
-        card.innerHTML = `
-            <div class="card-header-flex"> 
-                <div class="user-info-group" style="display: flex; gap: 12px; align-items: center;">
-                    <div class="avatar-ring">
-                        <img src="${member.avatar}" alt="${member.name}" class="avatar">
-                    </div>
-                    <div>
-                        <h2 style="margin:0; font-size:1.2rem; font-weight:700;">${member.name}</h2>
-                        <p style="margin:0; font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em;">${member.role}</p>
+        // Pending List (Drag & Drop)
+        const pending = Array.isArray(member.pending) ? member.pending : [];
+        const pendingHtml = pending.map((p, i) => `
+            <li class="pending-item" 
+                draggable="true"
+                ondragstart="window.dragStart(event, '${member.id}', ${i})"
+                ondragover="window.dragOver(event)"
+                ondrop="window.dragDrop(event, '${member.id}', ${i})"
+                ondragenter="this.classList.add('drag-over')"
+                ondragleave="this.classList.remove('drag-over')"
+            >
+                <div style="display:flex; align-items:center;">
+                    <i class="fa-solid fa-grip-vertical" style="color:rgba(255,255,255,0.2); margin-right:8px; cursor:grab;"></i>
+                    <button onclick="window.promoteTask('${member.id}', ${i})" 
+                            title="Promover a Proyecto Actual" 
+                            style="background:none; border:none; color:#4b5563; cursor:pointer; margin-right:8px;"
+                            onmouseover="this.style.color='#00f2ff'" onmouseout="this.style.color='#4b5563'">
+                        <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                    </button>
+                </div>
+                <span contenteditable="true" 
+                      onblur="window.updatePendingText('${member.id}', ${i}, this.innerText)"
+                      onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                      style="flex:1; margin-right:8px;">${p}</span> 
+                <button class="delete-task-btn" onclick="window.deletePending('${member.id}', ${i})" title="Eliminar">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </li>
+        `).join('');
+
+        // Vacation
+        let vacationHtml = '';
+        if (member.vacationStart && member.vacationEnd) {
+            const start = new Date(member.vacationStart + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+            const end = new Date(member.vacationEnd + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+            vacationHtml = `<div style="margin-top:16px; padding:10px; background:rgba(59,130,246,0.1); border-radius:8px; font-size:13px; color:#93c5fd;">
+                 <i class="fa-solid fa-plane"></i> Vacaciones: ${start} al ${end}
+             </div>`;
+        }
+
+        html += `
+        <article class="designer-card" id="card-${member.id}">
+            <div class="card-header-flex">
+                <div class="user-info-group">
+                    <img src="${member.avatar || 'https://api.dicebear.com/7.x/avataaars/svg'}" class="avatar">
+                    <div class="user-text">
+                        <h2>${member.name}</h2>
+                        <p>${member.role}</p>
                     </div>
                 </div>
                 
+                <!-- PROGRESS & EDIT CONTAINER -->
                 <div style="display: flex; gap: 15px; align-items: center;">
                     <div class="flex flex-col items-center" style="display:flex; flex-direction:column; align-items:center;">
                         ${progressHTML}
-                        <span style="font-size:10px; color:#6b7280; margin-top:4px; font-family:monospace;">${loggedHours.toFixed(0)}h</span>
+                        <span style="font-size:10px; color:#6b7280; margin-top:4px; font-family:monospace;">${loggedHours}h</span>
                     </div>
                     <button class="edit-btn" onclick="window.openModal('${member.id}')"><i class="fa-solid fa-pen"></i></button>
                 </div>
             </div>
 
-            <!-- WORK BOX (ORIGINAL LOOK) -->
-            <div class="work-box" style="margin-top:15px; min-height:140px;"> 
-                <p class="section-label" style="font-size:0.7rem; color:#6b7280; margin-bottom:8px; font-weight:bold; text-transform:uppercase;">PROYECTO ACTUAL</p>
+            <div class="work-box" style="margin-top:15px">
+                <span class="section-label">PROYECTO ACTUAL (CLICK PARA EDITAR)</span>
+                <div class="project-title" contenteditable="true" 
+                     onblur="window.updateField('${member.id}', 'project', this.innerText)">${member.project || 'Sin Asignar'}</div>
                 
-                <div class="project-title-editor" onclick="window.editProjectTitle('${member.id}')" style="cursor:pointer; margin-bottom:8px;">
-                     <h3 style="font-size:1.1rem; color:#00f2ff; margin:0; font-weight:bold; line-height:1.2;">
-                        ${member.currentProject.title} 
-                        <i class="fa-solid fa-pencil text-gray-600 text-xs opacity-0 hover:opacity-100 transition-opacity" style="font-size:0.8rem; margin-left:5px;"></i>
-                     </h3>
-                </div>
+                <span class="pill" contenteditable="true"
+                      onblur="window.updateField('${member.id}', 'phase', this.innerText)">${member.phase || 'N/A'}</span>
+                
+                <p class="client-name" contenteditable="true"
+                   onblur="window.updateField('${member.id}', 'client', this.innerText)">${member.client || 'Cliente'}</p>
 
-                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
-                    ${member.currentProject.tags.map(tag =>
-            `<span style="background:rgba(0, 242, 255, 0.1); color:#00f2ff; border:1px solid rgba(0, 242, 255, 0.2); padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:600;">${tag}</span>`
-        ).join('')}
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: auto;">
-                    <div>
-                        <span style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px;">ESTADO</span>
-                        <span style="font-size:0.8rem; color:#d1d5db;">${member.currentProject.status}</span>
-                    </div>
-                    <div style="text-align:right;">
-                         <span style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px;">ENTREGA</span>
-                        <span class="${member.currentProject.urgency === 'URGENTE' ? 'flash-text' : ''}" 
-                              style="font-size:0.8rem; font-weight:bold; ${member.currentProject.urgency === 'URGENTE' ? 'color:#eab308;' : 'color:#fff;'}">
-                            ${member.currentProject.urgency === 'URGENTE' ? '<i class="fa-solid fa-triangle-exclamation"></i> URGENTE' : member.currentProject.deadline}
-                        </span>
+                <div style="display:flex; justify-content:space-between; margin-top:10px; align-items:center;">
+                    <span class="section-label">ENTREGA</span>
+                    <div class="alert-badge ${status.color}" onclick="window.openModal('${member.id}')" style="cursor:pointer">
+                        <i class="${status.icon}"></i> ${status.text}
                     </div>
                 </div>
             </div>
 
-            <div class="pending-section">
-                <div class="flex justify-between items-center mb-3">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">PENDIENTES (ARRASTRAR PARA ORDENAR)</p>
-                    <button class="text-blue-400 hover:text-blue-300 transition-colors" onclick="window.addPendingTask('${member.id}')">
+            <div style="margin-top:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="section-label">PENDIENTES (ARRASTRAR PARA ORDENAR)</span>
+                    <button onclick="window.addPending('${member.id}')" style="color:#3b82f6; background:none; border:none; cursor:pointer;">
                         <i class="fa-solid fa-plus"></i>
                     </button>
                 </div>
-                
-                <div class="space-y-2 min-h-[50px]" ondrop="window.handleDrop(event, '${member.id}')" ondragover="window.handleDragOver(event)">
-                    ${member.pendingTasks.map((task, i) => `
-                        <div class="pending-item bg-[#0d1117] p-3 rounded border border-[#30363d] flex justify-between items-center group draggable" 
-                             draggable="true" 
-                             ondragstart="window.handleDragStart(event, '${member.id}', ${i})"
-                             data-member-id="${member.id}"
-                             data-index="${i}">
-                             
-                            <div class="flex items-center gap-3 overflow-hidden">
-                                <i class="fa-solid fa-grip-vertical text-gray-700 cursor-grab"></i>
-                                
-                                <!-- PROMOTE BUTTON (NEW) -->
-                                <button onclick="window.promoteTask('${member.id}', ${i})" 
-                                        class="text-gray-600 hover:text-[#00f2ff] transition-colors" 
-                                        title="Promover a Proyecto Actual">
-                                    <i class="fa-solid fa-arrow-up-from-bracket"></i>
-                                </button>
-                                
-                                <span class="truncate text-gray-300 text-sm">${task}</span>
-                            </div>
-                            
-                            <button onclick="window.removePendingTask('${member.id}', ${i})" 
-                                    class="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-                    `).join('')}
-                </div>
+                <ul class="pending-list">${pendingHtml}</ul>
             </div>
+            ${vacationHtml}
+        </article>
         `;
-        container.appendChild(card);
     });
-}
-// Minimal toast function to avoid errors
-function showToast(message, isError) {
-    console.log("Toast:", message, isError ? "(Error)" : "");
-    // In a real app, you'd display a UI element here
+
+    grid.innerHTML = html;
 }
 
 // --- 4. GLOBAL HELPERS ---
@@ -336,135 +300,141 @@ window.updateField = async (id, field, value) => {
     }
 };
 
-// --- 5. INTERACTION HANDLERS (CORRECT SCEMA) ---
+if (db) {
+    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
+        if (document.getElementById('loading-message'))
+            document.getElementById('loading-message').style.display = 'none';
 
-// Drag & Drop
-window.handleDragStart = (e, mId, idx) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({ mId, idx }));
-    e.target.style.opacity = '0.4';
-};
-window.handleDragOver = (e) => e.preventDefault();
-window.handleDragEnter = (e) => e.target.classList.add('over');
-window.handleDragLeave = (e) => e.target.classList.remove('over');
-window.handleDrop = async (e, targetMId) => {
+        if (docSnap.exists()) {
+            team = docSnap.data().members || [];
+            if (team.length === 0) saveToCloud(defaultTeam);
+            else renderApp();
+        } else {
+            saveToCloud(defaultTeam);
+        }
+    });
+}
+// Minimal toast function to avoid errors
+function showToast(message, isError) {
+    console.log("Toast:", message, isError ? "(Error)" : "");
+    // In a real app, you'd display a UI element here
+}
+if (db) {
+    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
+        if (document.getElementById('loading-message'))
+            document.getElementById('loading-message').style.display = 'none';
+
+        if (docSnap.exists()) {
+            team = docSnap.data().members || [];
+            if (team.length === 0) saveToCloud(defaultTeam);
+            else {
+                renderApp();
+                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
+                // Note: The logic above already calls syncRealTimeHours on load.
+                // We can remove the old call here or make sure it uses the new db.
+                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
+            }
+        } else {
+            saveToCloud(defaultTeam);
+        }
+    });
+}
+// --- DRAG & DROP LOGIC ---
+let draggedItem = null;
+window.dragStart = (e, mId, idx) => { draggedItem = { mId, idx }; e.target.classList.add('dragging'); };
+window.dragOver = (e) => { e.preventDefault(); };
+window.dragDrop = async (e, tId, tIdx) => {
     e.preventDefault();
-    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-    // Simple verification
-    if (data.mId !== targetMId) return;
+    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 
-    // For now, simpler reorder: Move to end (since we don't track drop index precisely in container drop)
-    // Ideally we'd drop on a specific item to swap.
-    // Let's implement specific swap if needed, but for now appends.
-    const member = team.find(m => m.id === targetMId);
-    const item = member.pendingTasks.splice(data.index, 1)[0];
-    member.pendingTasks.push(item);
+    if (!draggedItem || draggedItem.mId !== tId || draggedItem.idx === tIdx) return;
 
+    const idx = team.findIndex(m => m.id === tId);
+    const newPending = [...team[idx].pending];
+    const item = newPending.splice(draggedItem.idx, 1)[0];
+    newPending.splice(tIdx, 0, item);
+
+    team[idx].pending = newPending;
     await saveToCloud(team);
-    renderApp();
+    draggedItem = null;
 };
 
-// Pending Tasks
-window.addPendingTask = async (id) => {
+// --- Modal & Other actions ---
+// --- Modal & Other actions ---
+window.updatePendingText = async (id, i, txt) => {
+    const idx = team.findIndex(m => m.id === id);
+    if (idx > -1) { team[idx].pending[i] = txt.trim(); await saveToCloud(team); }
+};
+window.deletePending = async (id, i) => {
+    if (!confirm('¿Borrar?')) return;
+    const idx = team.findIndex(m => m.id === id);
+    team[idx].pending.splice(i, 1);
+    await saveToCloud(team);
+};
+window.addPending = async (id) => {
     const txt = prompt("Nueva tarea:");
-    if (!txt) return;
-    const idx = team.findIndex(m => m.id === id);
-    if (!team[idx].pendingTasks) team[idx].pendingTasks = [];
-    team[idx].pendingTasks.push(txt);
-    await saveToCloud(team);
-    renderApp();
-};
-
-window.removePendingTask = async (id, i) => {
-    if (!confirm("¿Eliminar tarea?")) return;
-    const idx = team.findIndex(m => m.id === id);
-    team[idx].pendingTasks.splice(i, 1);
-    await saveToCloud(team);
-    renderApp();
-};
-
-window.promoteTask = async (memberId, taskIndex) => {
-    const member = team.find(m => m.id === memberId);
-    if (!member) return;
-
-    const taskToPromote = member.pendingTasks[taskIndex];
-    if (!taskToPromote) return;
-
-    // Swap: Old Project Title -> Top of Pending
-    if (member.currentProject.title && member.currentProject.title !== "Proyecto Actual") {
-        member.pendingTasks.unshift(member.currentProject.title);
-        // The task to promote was at taskIndex.
-        // If we unshifted, the array length increased by 1.
-        // Effectively the task at taskIndex is now at taskIndex + 1
-        taskIndex++;
+    if (txt) {
+        const idx = team.findIndex(m => m.id === id);
+        if (!team[idx].pending) team[idx].pending = [];
+        team[idx].pending.push(txt);
+        await saveToCloud(team);
     }
-
-    member.currentProject.title = taskToPromote;
-    member.pendingTasks.splice(taskIndex, 1);
-
-    await saveToCloud(team);
-    renderApp();
-    showToast("Tarea promovida");
 };
 
-// Modals & Editing
+// NEW: Promote Task Feature
+window.promoteTask = async (id, i) => {
+    const idx = team.findIndex(m => m.id === id);
+    if (idx > -1) {
+        const member = team[idx];
+        const taskToPromote = member.pending[i];
+        const oldProject = member.project;
+
+        // 1. Remove from pending
+        member.pending.splice(i, 1);
+
+        // 2. Set as new project module
+        member.project = taskToPromote;
+
+        // 3. Move old project to top of pending (if valid)
+        if (oldProject && oldProject !== 'Sin Asignar' && oldProject.trim() !== '') {
+            member.pending.unshift(oldProject);
+        }
+
+        await saveToCloud(team);
+    }
+};
+
+// Modal Logic
 window.openModal = (id) => {
     const m = team.find(x => x.id === id);
     if (!m) return;
-    const modal = document.getElementById('editModal');
-    if (!modal) return;
-
     document.getElementById('editId').value = m.id;
-    document.getElementById('editProject').value = m.currentProject?.title || '';
-    document.getElementById('editPhase').value = (m.currentProject?.tags || []).join(', ');
-    document.getElementById('editClient').value = m.role;
-    document.getElementById('editDate').value = m.currentProject?.deadline || '';
-
-    // Vacation fields if they exist in schema
-    if (document.getElementById('editVacationStart')) {
-        document.getElementById('editVacationStart').value = m.vacationStart || '';
-        document.getElementById('editVacationEnd').value = m.vacationEnd || '';
-    }
-
-    modal.style.display = 'flex';
-    setTimeout(() => modal.classList.add('active'), 10);
+    document.getElementById('editProject').value = m.project;
+    document.getElementById('editPhase').value = m.phase || '';
+    document.getElementById('editClient').value = m.client;
+    document.getElementById('editDate').value = m.deadline;
+    document.getElementById('editVacationStart').value = m.vacationStart || '';
+    document.getElementById('editVacationEnd').value = m.vacationEnd || '';
+    document.getElementById('editModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('editModal').classList.add('active'), 10);
 };
-
 window.closeModal = () => {
-    const modal = document.getElementById('editModal');
-    if (modal) {
-        modal.classList.remove('active');
-        setTimeout(() => modal.style.display = 'none', 200);
-    }
+    document.getElementById('editModal').classList.remove('active');
+    setTimeout(() => document.getElementById('editModal').style.display = 'none', 200);
 };
-
 window.handleSave = async (e) => {
     e.preventDefault();
     const id = document.getElementById('editId').value;
     const idx = team.findIndex(m => m.id === id);
     if (idx > -1) {
-        team[idx].currentProject.title = document.getElementById('editProject').value;
-        const tags = document.getElementById('editPhase').value.split(',').map(s => s.trim()).filter(s => s);
-        team[idx].currentProject.tags = tags;
-        team[idx].currentProject.deadline = document.getElementById('editDate').value;
-
-        // Vacation
-        if (document.getElementById('editVacationStart')) {
-            team[idx].vacationStart = document.getElementById('editVacationStart').value;
-            team[idx].vacationEnd = document.getElementById('editVacationEnd').value;
-        }
-
+        team[idx].project = document.getElementById('editProject').value;
+        team[idx].phase = document.getElementById('editPhase').value;
+        team[idx].client = document.getElementById('editClient').value;
+        team[idx].deadline = document.getElementById('editDate').value;
+        team[idx].vacationStart = document.getElementById('editVacationStart').value;
+        team[idx].vacationEnd = document.getElementById('editVacationEnd').value;
         await saveToCloud(team);
         window.closeModal();
-        renderApp();
     }
 };
-
-window.editProjectTitle = async (id) => {
-    const newTitle = prompt("Editar Título del Proyecto:");
-    if (newTitle) {
-        const idx = team.findIndex(m => m.id === id);
-        team[idx].currentProject.title = newTitle;
-        await saveToCloud(team);
-        renderApp();
-    }
-}
