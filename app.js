@@ -221,18 +221,19 @@ function renderApp() {
         const progressHTML = getCircleProgressHTML(percentage);
 
         const card = document.createElement('div');
-        card.className = 'glass-panel card-hover designer-card';
+        card.className = 'glass-panel card-hover designer-card'; // Main class restored
         card.innerHTML = `
-            <div class="card-header">
-                <div style="display: flex; gap: 15px; align-items: center;">
+            <div class="card-header-flex"> 
+                <div class="user-info-group" style="display: flex; gap: 12px; align-items: center;">
                     <div class="avatar-ring">
                         <img src="${member.avatar}" alt="${member.name}" class="avatar">
                     </div>
                     <div>
-                        <h2 class="text-xl font-bold">${member.name}</h2>
-                        <p class="text-xs text-gray-400 uppercase tracking-wider">${member.role}</p>
+                        <h2 style="margin:0; font-size:1.2rem; font-weight:700;">${member.name}</h2>
+                        <p style="margin:0; font-size:0.75rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em;">${member.role}</p>
                     </div>
                 </div>
+                
                 <div style="display: flex; gap: 15px; align-items: center;">
                     <div class="flex flex-col items-center" style="display:flex; flex-direction:column; align-items:center;">
                         ${progressHTML}
@@ -242,27 +243,33 @@ function renderApp() {
                 </div>
             </div>
 
-            <div class="project-status mb-6">
-                <p class="text-xs text-gray-500 font-bold mb-2 uppercase tracking-wide">PROYECTO ACTUAL (CLICK PARA EDITAR)</p>
-                <div class="project-title-editor" onclick="window.editProjectTitle('${member.id}')">
-                    <h3 class="text-xl font-bold text-[#00f2ff] mb-2 truncate">${member.currentProject.title}</h3>
-                    <i class="fa-solid fa-pencil text-gray-600 text-xs opacity-0 group-hover:opacity-100 transition-opacity"></i>
+            <!-- WORK BOX (ORIGINAL LOOK) -->
+            <div class="work-box" style="margin-top:15px; min-height:140px;"> 
+                <p class="section-label" style="font-size:0.7rem; color:#6b7280; margin-bottom:8px; font-weight:bold; text-transform:uppercase;">PROYECTO ACTUAL</p>
+                
+                <div class="project-title-editor" onclick="window.editProjectTitle('${member.id}')" style="cursor:pointer; margin-bottom:8px;">
+                     <h3 style="font-size:1.1rem; color:#00f2ff; margin:0; font-weight:bold; line-height:1.2;">
+                        ${member.currentProject.title} 
+                        <i class="fa-solid fa-pencil text-gray-600 text-xs opacity-0 hover:opacity-100 transition-opacity" style="font-size:0.8rem; margin-left:5px;"></i>
+                     </h3>
                 </div>
-                <div class="flex flex-wrap gap-2 mb-3">
+
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
                     ${member.currentProject.tags.map(tag =>
-            `<span class="px-2 py-1 rounded text-xs font-bold bg-[#0d1117] text-[#00f2ff] border border-[#00f2ff]/30">${tag}</span>`
+            `<span style="background:rgba(0, 242, 255, 0.1); color:#00f2ff; border:1px solid rgba(0, 242, 255, 0.2); padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:600;">${tag}</span>`
         ).join('')}
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4 text-xs text-gray-400">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: auto;">
                     <div>
-                        <span class="block text-gray-600 mb-1">Dirección</span>
-                        ${member.currentProject.status}
+                        <span style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px;">ESTADO</span>
+                        <span style="font-size:0.8rem; color:#d1d5db;">${member.currentProject.status}</span>
                     </div>
-                    <div class="text-right">
-                         <span class="block text-gray-600 mb-1">ENTREGA</span>
-                        <span class="${member.currentProject.urgency === 'URGENTE' ? 'text-black bg-[#eab308] px-2 py-0.5 rounded font-bold' : 'text-white'}">
-                            ${member.currentProject.urgency === 'URGENTE' ? '<i class="fa-solid fa-hourglass-half mr-1"></i>URGENTE' : member.currentProject.deadline}
+                    <div style="text-align:right;">
+                         <span style="display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px;">ENTREGA</span>
+                        <span class="${member.currentProject.urgency === 'URGENTE' ? 'flash-text' : ''}" 
+                              style="font-size:0.8rem; font-weight:bold; ${member.currentProject.urgency === 'URGENTE' ? 'color:#eab308;' : 'color:#fff;'}">
+                            ${member.currentProject.urgency === 'URGENTE' ? '<i class="fa-solid fa-triangle-exclamation"></i> URGENTE' : member.currentProject.deadline}
                         </span>
                     </div>
                 </div>
