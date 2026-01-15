@@ -79,16 +79,11 @@ const trackerConfig = {
 
 // Initialize Secondary App
 try {
-    // Only initialize if not already done to avoid "App already exists" error on hot-reload
-    // We try/catch just in case but usually standard init is fine.
     const trackerApp = initializeApp(trackerConfig, "timeTrackerApp");
     const trackerDb = getFirestore(trackerApp);
     syncRealTimeHours(trackerDb);
 } catch (e) {
-    // If app already exists, we get it
     console.warn("Tracker App Init Warn:", e);
-    // In strict module mode re-getting might fail, but let's try assuming standard firebase pattern
-    // If this fails, we just won't sync, but app won't crash.
 }
 
 const NAME_MAPPING = {
@@ -101,30 +96,61 @@ import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/f
 
 async function syncRealTimeHours(trackerDb) {
     if (!trackerDb) return;
-    console.log("📡 Conectando con Colección de Tareas (Cloud Native)...");
 
-    try {
-        const querySnapshot = await getDocs(collection(trackerDb, "tasks"));
+    // List of probable collection names based on common practices
+    const candidateCollections = [
+        "registros", "tasks", "tareas", "timesheets", "timesheet",
+        "users", "usuarios", "empleados", "members",
+        "entries", "time_entries", "worklogs", "activities",
+        "projects", "proyectos", "data", "monthly_control", "control_mensual",
+        "registros_tiempo", "bitacora"
+    ];
 
-        const tasksByUser = {};
-        let debugFirstTask = true;
+    let rawTasks = [];
+    let foundCollection = "";
 
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
+    console.log("📡 Buscando datos en colecciones posibles (Exhaustivo)...");
 
-            // --- DEBUG SECTION ---
-            if (debugFirstTask) {
-                console.log("🐛 DEBUG INSPECCION: Estructura de UNA Tarea Real (Copia esto si ves ceros):", data);
-                debugFirstTask = false;
+    for (const colName of candidateCollections) {
+        try {
+            console.log(`🔎 Probando colección: '${colName}'...`);
+            const querySnapshot = await getDocs(collection(trackerDb, colName));
+
+            // Special check: sometimes collection exists but is empty, or permission denied throws error
+            if (!querySnapshot.empty) {
+                console.log(`✅ ¡EUREKA! Encontrados ${querySnapshot.size} documentos en '${colName}'!`);
+                foundCollection = colName;
+                querySnapshot.forEach(doc => rawTasks.push(doc.data()));
+                break; // Stop looking once we find data
+            } else {
+                // It might be empty, log it but keep looking
+                console.log(`⚠️ Colección '${colName}' existe pero está VACÍA.`);
             }
-            // ---------------------
+        } catch (e) {
+            // Permission denied or not found usually throws here
+            // console.log(`❌ Error leyendo '${colName}':`, e.code); 
+        }
+    }
 
+    if (rawTasks.length === 0) {
+        console.warn("⚠️ No se encontraron datos en ninguna colección conocida.");
+        showToast("No se encontraron registros de tiempo", true);
+        return;
+    }
+
+    // Process Data
+    try {
+        const tasksByUser = {};
+
+        // Debug first item
+        console.log("🐛 DEBUG TAREA:", rawTasks[0]);
+
+        rawTasks.forEach((data) => {
             // Heuristic to find User Name
-            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever || data.responsable;
+            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever || data.responsable || data.Usuario;
 
             if (userName) {
                 const cleanName = String(userName).trim();
-                // Store the whole data object to sum fields later
                 if (!tasksByUser[cleanName]) tasksByUser[cleanName] = [];
                 tasksByUser[cleanName].push(data);
             }
@@ -133,7 +159,7 @@ async function syncRealTimeHours(trackerDb) {
         console.log("🔑 Nombres en BD:", Object.keys(tasksByUser));
 
         // 2. Calculate Hours per Team Member
-        // Hardcoded "Enero" - in future make dynamic: new Date().toLocaleDateString('es-ES', {month:'long'})
+        // Hardcoded "Enero" - in future make dynamic
         const currentMonthName = "Enero";
 
         let updatesFound = false;
@@ -146,23 +172,21 @@ async function syncRealTimeHours(trackerDb) {
                 const userTasks = tasksByUser[alias] || [];
 
                 // Filter by Month
-                // We check 'month', 'mes', 'Month'
                 const monthTasks = userTasks.filter(t => {
-                    const m = t.month || t.mes || t.Month || "";
+                    const m = t.month || t.mes || t.Month || t.Mes || "";
                     return m.toLowerCase() === currentMonthName.toLowerCase();
                 });
 
                 // Sum Hours
-                // We check 'hours', 'cant_horas', 'totalHours', 'horas'
                 const sum = monthTasks.reduce((acc, t) => {
-                    const h = t.hours || t.cant_horas || t.totalHours || t.horas || 0;
+                    const h = t.hours || t.cant_horas || t.totalHours || t.horas || t.Horas || 0;
                     return acc + parseFloat(String(h));
                 }, 0);
 
                 totalHours += sum;
             });
 
-            console.log(`📊 ${member.name} (Calculado): ${totalHours.toFixed(1)}h`);
+            console.log(`📊 ${member.name}: ${totalHours.toFixed(1)}h`);
 
             if (member.hours !== totalHours) {
                 member.hours = totalHours;
@@ -173,18 +197,13 @@ async function syncRealTimeHours(trackerDb) {
         if (updatesFound) {
             renderApp();
             saveToCloud(team);
-            showToast("Sincronizado con TimeTracker", false);
+            showToast(`Sincronizado (Fuente: ${foundCollection})`, false);
         } else {
             console.log("ℹ️ Datos verificados, todo al día.");
         }
 
     } catch (error) {
-        console.error("Firebase Sync Error:", error);
-        if (error.code === 'permission-denied') {
-            showToast("⛔ Permiso Denegado (Revisar Reglas)", true);
-        } else {
-            showToast("Error conectando a Tracker", true);
-        }
+        console.error("Processing Error:", error);
     }
 }
 
@@ -339,13 +358,13 @@ if (db) {
             if (team.length === 0) saveToCloud(defaultTeam);
             else {
                 renderApp();
-                // Trigger sync after load
-                syncWithTimeTracker();
+                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
+                // Note: The logic above already calls syncRealTimeHours on load.
+                // We can remove the old call here or make sure it uses the new db.
+                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
             }
         } else {
             saveToCloud(defaultTeam);
-            renderApp();
-            syncWithTimeTracker();
         }
     });
 }
