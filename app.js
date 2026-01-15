@@ -103,19 +103,29 @@ async function syncRealTimeHours(trackerDb) {
         // Structure: { "Mitchell": [Task1, Task2], "Homero": [...] }
         const tasksByUser = {};
 
+        let debugFirstTask = true;
+
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            // We assume the field containing the name is 'designer', 'user', 'name' or similar.
-            // Based on user info, keys are likely names.
-            // Let's inspect the data structure in console to debug if needed
-            const userName = data.designer || data.user || data.name || data.userName;
+
+            if (debugFirstTask) {
+                console.log("🐛DEBUG: Estructura de UNA Tarea Real:", data);
+                debugFirstTask = false;
+            }
+
+            // Expanded heuristic to find the User Name field
+            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever;
+
             if (userName) {
-                if (!tasksByUser[userName]) tasksByUser[userName] = [];
-                tasksByUser[userName].push(data);
+                // Normalize name to be safe (trim spaces)
+                const cleanName = String(userName).trim();
+                if (!tasksByUser[cleanName]) tasksByUser[cleanName] = [];
+                tasksByUser[cleanName].push(data);
             }
         });
 
-        console.log("Tasks Grouped:", Object.keys(tasksByUser));
+        console.log("🔑 Nombres encontrados en BD:", Object.keys(tasksByUser));
+        console.log("🎯 Buscando coincidencias para:", JSON.stringify(NAME_MAPPING));
 
         // 2. Calculate Hours per Team Member
         // Current Month hardcoded to "Enero" based on context, or dynamic
