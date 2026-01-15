@@ -298,123 +298,135 @@ window.updateField = async (id, field, value) => {
     }
 };
 
-if (db) {
-    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
-        if (document.getElementById('loading-message'))
-            document.getElementById('loading-message').style.display = 'none';
+// --- 5. INTERACTION HANDLERS (CORRECT SCEMA) ---
 
-        if (docSnap.exists()) {
-            team = docSnap.data().members || [];
-            if (team.length === 0) saveToCloud(defaultTeam);
-            else {
-                renderApp();
-                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
-                // Note: The logic above already calls syncRealTimeHours on load.
-                // We can remove the old call here or make sure it uses the new db.
-                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
-            }
-        } else {
-            saveToCloud(defaultTeam);
-        }
-    });
-}
-// Minimal toast function to avoid errors
-function showToast(message, isError) {
-    console.log("Toast:", message, isError ? "(Error)" : "");
-    // In a real app, you'd display a UI element here
-}
-if (db) {
-    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
-        if (document.getElementById('loading-message'))
-            document.getElementById('loading-message').style.display = 'none';
-
-        if (docSnap.exists()) {
-            team = docSnap.data().members || [];
-            if (team.length === 0) saveToCloud(defaultTeam);
-            else {
-                renderApp();
-                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
-                // Note: The logic above already calls syncRealTimeHours on load.
-                // We can remove the old call here or make sure it uses the new db.
-                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
-            }
-        } else {
-            saveToCloud(defaultTeam);
-        }
-    });
-}
-// --- DRAG & DROP LOGIC ---
-let draggedItem = null;
-window.dragStart = (e, mId, idx) => { draggedItem = { mId, idx }; e.target.classList.add('dragging'); };
-window.dragOver = (e) => { e.preventDefault(); };
-window.dragDrop = async (e, tId, tIdx) => {
+// Drag & Drop
+window.handleDragStart = (e, mId, idx) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ mId, idx }));
+    e.target.style.opacity = '0.4';
+};
+window.handleDragOver = (e) => e.preventDefault();
+window.handleDragEnter = (e) => e.target.classList.add('over');
+window.handleDragLeave = (e) => e.target.classList.remove('over');
+window.handleDrop = async (e, targetMId) => {
     e.preventDefault();
-    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    // Simple verification
+    if (data.mId !== targetMId) return;
 
-    if (!draggedItem || draggedItem.mId !== tId || draggedItem.idx === tIdx) return;
+    // For now, simpler reorder: Move to end (since we don't track drop index precisely in container drop)
+    // Ideally we'd drop on a specific item to swap.
+    // Let's implement specific swap if needed, but for now appends.
+    const member = team.find(m => m.id === targetMId);
+    const item = member.pendingTasks.splice(data.index, 1)[0];
+    member.pendingTasks.push(item);
 
-    const idx = team.findIndex(m => m.id === tId);
-    const newPending = [...team[idx].pending];
-    const item = newPending.splice(draggedItem.idx, 1)[0];
-    newPending.splice(tIdx, 0, item);
-
-    team[idx].pending = newPending;
     await saveToCloud(team);
-    draggedItem = null;
+    renderApp();
 };
 
-// --- Modal & Other actions ---
-window.updatePendingText = async (id, i, txt) => {
-    const idx = team.findIndex(m => m.id === id);
-    if (idx > -1) { team[idx].pending[i] = txt.trim(); await saveToCloud(team); }
-};
-window.deletePending = async (id, i) => {
-    if (!confirm('¿Borrar?')) return;
-    const idx = team.findIndex(m => m.id === id);
-    team[idx].pending.splice(i, 1);
-    await saveToCloud(team);
-};
-window.addPending = async (id) => {
+// Pending Tasks
+window.addPendingTask = async (id) => {
     const txt = prompt("Nueva tarea:");
-    if (txt) {
-        const idx = team.findIndex(m => m.id === id);
-        if (!team[idx].pending) team[idx].pending = [];
-        team[idx].pending.push(txt);
-        await saveToCloud(team);
-    }
+    if (!txt) return;
+    const idx = team.findIndex(m => m.id === id);
+    if (!team[idx].pendingTasks) team[idx].pendingTasks = [];
+    team[idx].pendingTasks.push(txt);
+    await saveToCloud(team);
+    renderApp();
 };
 
-// Modal Logic
+window.removePendingTask = async (id, i) => {
+    if (!confirm("¿Eliminar tarea?")) return;
+    const idx = team.findIndex(m => m.id === id);
+    team[idx].pendingTasks.splice(i, 1);
+    await saveToCloud(team);
+    renderApp();
+};
+
+window.promoteTask = async (memberId, taskIndex) => {
+    const member = team.find(m => m.id === memberId);
+    if (!member) return;
+
+    const taskToPromote = member.pendingTasks[taskIndex];
+    if (!taskToPromote) return;
+
+    // Swap: Old Project Title -> Top of Pending
+    if (member.currentProject.title && member.currentProject.title !== "Proyecto Actual") {
+        member.pendingTasks.unshift(member.currentProject.title);
+        // The task to promote was at taskIndex.
+        // If we unshifted, the array length increased by 1.
+        // Effectively the task at taskIndex is now at taskIndex + 1
+        taskIndex++;
+    }
+
+    member.currentProject.title = taskToPromote;
+    member.pendingTasks.splice(taskIndex, 1);
+
+    await saveToCloud(team);
+    renderApp();
+    showToast("Tarea promovida");
+};
+
+// Modals & Editing
 window.openModal = (id) => {
     const m = team.find(x => x.id === id);
     if (!m) return;
+    const modal = document.getElementById('editModal');
+    if (!modal) return;
+
     document.getElementById('editId').value = m.id;
-    document.getElementById('editProject').value = m.project;
-    document.getElementById('editPhase').value = m.phase || '';
-    document.getElementById('editClient').value = m.client;
-    document.getElementById('editDate').value = m.deadline;
-    document.getElementById('editVacationStart').value = m.vacationStart || '';
-    document.getElementById('editVacationEnd').value = m.vacationEnd || '';
-    document.getElementById('editModal').style.display = 'flex';
-    setTimeout(() => document.getElementById('editModal').classList.add('active'), 10);
+    document.getElementById('editProject').value = m.currentProject?.title || '';
+    document.getElementById('editPhase').value = (m.currentProject?.tags || []).join(', ');
+    document.getElementById('editClient').value = m.role;
+    document.getElementById('editDate').value = m.currentProject?.deadline || '';
+
+    // Vacation fields if they exist in schema
+    if (document.getElementById('editVacationStart')) {
+        document.getElementById('editVacationStart').value = m.vacationStart || '';
+        document.getElementById('editVacationEnd').value = m.vacationEnd || '';
+    }
+
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
 };
+
 window.closeModal = () => {
-    document.getElementById('editModal').classList.remove('active');
-    setTimeout(() => document.getElementById('editModal').style.display = 'none', 200);
+    const modal = document.getElementById('editModal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 200);
+    }
 };
+
 window.handleSave = async (e) => {
     e.preventDefault();
     const id = document.getElementById('editId').value;
     const idx = team.findIndex(m => m.id === id);
     if (idx > -1) {
-        team[idx].project = document.getElementById('editProject').value;
-        team[idx].phase = document.getElementById('editPhase').value;
-        team[idx].client = document.getElementById('editClient').value;
-        team[idx].deadline = document.getElementById('editDate').value;
-        team[idx].vacationStart = document.getElementById('editVacationStart').value;
-        team[idx].vacationEnd = document.getElementById('editVacationEnd').value;
+        team[idx].currentProject.title = document.getElementById('editProject').value;
+        const tags = document.getElementById('editPhase').value.split(',').map(s => s.trim()).filter(s => s);
+        team[idx].currentProject.tags = tags;
+        team[idx].currentProject.deadline = document.getElementById('editDate').value;
+
+        // Vacation
+        if (document.getElementById('editVacationStart')) {
+            team[idx].vacationStart = document.getElementById('editVacationStart').value;
+            team[idx].vacationEnd = document.getElementById('editVacationEnd').value;
+        }
+
         await saveToCloud(team);
         window.closeModal();
+        renderApp();
     }
 };
+
+window.editProjectTitle = async (id) => {
+    const newTitle = prompt("Editar Título del Proyecto:");
+    if (newTitle) {
+        const idx = team.findIndex(m => m.id === id);
+        team[idx].currentProject.title = newTitle;
+        await saveToCloud(team);
+        renderApp();
+    }
+}
