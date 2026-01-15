@@ -90,7 +90,7 @@ try {
 const NAME_MAPPING = {
     "Homero": "Homero Hernandez",
     "Michelle": "Mitchell Pous",
-    "Maite": "Esther Franco"  // Guessing based on "Esther" usually being Maite/Esther
+    "Maite": "Esther Franco"
 };
 
 // We don't need to re-import doc/getDoc if they are already imported at the top of the file.
@@ -114,38 +114,30 @@ import { doc as docRefGen, getDoc } from "https://www.gstatic.com/firebasejs/10.
 async function syncRealTimeHours(trackerDb) {
     if (!trackerDb) return;
 
-    console.log("📡 Conectando con BD Maestra (studio_tracker_v3/main_db)...");
+    console.log("📡 Conectando con TimeTracker...");
 
     try {
-        // The other app stores EVERYTHING in a single document
-        // Use the aliased doc generator to avoid conflict with any global 'doc' variable
+        // Fetch Single Document Architecture
         const dRef = docRefGen(trackerDb, "studio_tracker_v3", "main_db");
         const docSnap = await getDoc(dRef);
 
         if (!docSnap.exists()) {
-            console.error("❌ No se encontró el documento 'main_db'");
-            showToast("Error: DB TimeTracker vacía", true);
+            console.warn("⚠️ No se encontró la DB de TimeTracker");
             return;
         }
 
         const data = docSnap.data();
-        const allTasksMap = data.tasks || {}; // { "Mitchell Pous": [...], "Rufino...": [...] }
-
-        console.log("✅ Datos recibidos. Usuarios:", Object.keys(allTasksMap));
+        const allTasksMap = data.tasks || {};
 
         // 2. Calculate Hours per Team Member
-        // Hardcoded "Enero" - in future make dynamic
-        const currentMonthName = "Enero"; // Matches "MONTHS" array in source code
+        // Dynamic Month Calculation could be added here later
+        const currentMonthName = "Enero";
 
         let updatesFound = false;
 
         team.forEach(member => {
-            // Find key in the big map
             const trackerKey = NAME_MAPPING[member.name];
-            if (!trackerKey) {
-                console.warn(`⚠️ No hay mapeo definido para ${member.name}`);
-                return;
-            }
+            if (!trackerKey) return;
 
             const userTasks = allTasksMap[trackerKey] || [];
 
@@ -153,15 +145,14 @@ async function syncRealTimeHours(trackerDb) {
             const monthTasks = userTasks.filter(t => t.month === currentMonthName);
 
             // Sum Hours
-            // Source code uses "hours" field (number or string)
             const totalHours = monthTasks.reduce((acc, t) => {
                 const h = parseFloat(String(t.hours || 0));
                 return acc + (isNaN(h) ? 0 : h);
             }, 0);
 
-            console.log(`📊 ${member.name} -> ${trackerKey}: ${totalHours.toFixed(1)}h (${currentMonthName})`);
-
+            // Update only if changed to avoid unnecessary re-renders
             if (member.hours !== totalHours) {
+                console.log(`📊 Actualizando horas de ${member.name}: ${totalHours.toFixed(1)}h`);
                 member.hours = totalHours;
                 updatesFound = true;
             }
@@ -170,14 +161,12 @@ async function syncRealTimeHours(trackerDb) {
         if (updatesFound) {
             renderApp();
             saveToCloud(team);
-            showToast("Sincronizado con TimeTracker V3", false);
-        } else {
-            console.log("ℹ️ Datos verificados, todo al día.");
+            showToast("Horas Sincronizadas", false);
         }
 
     } catch (error) {
-        console.error("Single Doc Sync Error:", error);
-        showToast("Error de Estructura de Datos", true);
+        console.error("Sync Error:", error);
+        // Silent fail for user experience unless critical
     }
 }
 
