@@ -66,7 +66,7 @@ function getCircleProgressHTML(percentage, size = 50) {
     `;
 }
 
-// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: CLOUD NATIVE & AGGREGATION) ---
+// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: SINGLE DOC ARCHITECTURE) ---
 const trackerConfig = {
     apiKey: "AIzaSyAjxKauucl1VGHRP2AYCrnZHnEtM3cCg1U",
     authDomain: "timetracker-48916.firebaseapp.com",
@@ -86,107 +86,63 @@ try {
     console.warn("Tracker App Init Warn:", e);
 }
 
+// Mapping: Studio Sync Name -> Time Tracker Key
 const NAME_MAPPING = {
-    "Homero": ["Homero", "Homero Hernandez", "Homero Hernández"],
-    "Michelle": ["Mitchell", "Mitchell Pous", "Michelle"],
-    "Maite": ["Esther", "Maite"]
+    "Homero": "Homero Hernandez",
+    "Michelle": "Mitchell Pous",
+    "Maite": "Esther Franco"  // Guessing based on "Esther" usually being Maite/Esther
 };
 
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 async function syncRealTimeHours(trackerDb) {
     if (!trackerDb) return;
 
-    // List of probable collection names based on common practices
-    const candidateCollections = [
-        "registros", "tasks", "tareas", "timesheets", "timesheet",
-        "users", "usuarios", "empleados", "members",
-        "entries", "time_entries", "worklogs", "activities",
-        "projects", "proyectos", "data", "monthly_control", "control_mensual",
-        "registros_tiempo", "bitacora"
-    ];
+    console.log("📡 Conectando con BD Maestra (studio_tracker_v3/main_db)...");
 
-    let rawTasks = [];
-    let foundCollection = "";
-
-    console.log("📡 Buscando datos en colecciones posibles (Exhaustivo)...");
-
-    for (const colName of candidateCollections) {
-        try {
-            console.log(`🔎 Probando colección: '${colName}'...`);
-            const querySnapshot = await getDocs(collection(trackerDb, colName));
-
-            // Special check: sometimes collection exists but is empty, or permission denied throws error
-            if (!querySnapshot.empty) {
-                console.log(`✅ ¡EUREKA! Encontrados ${querySnapshot.size} documentos en '${colName}'!`);
-                foundCollection = colName;
-                querySnapshot.forEach(doc => rawTasks.push(doc.data()));
-                break; // Stop looking once we find data
-            } else {
-                // It might be empty, log it but keep looking
-                console.log(`⚠️ Colección '${colName}' existe pero está VACÍA.`);
-            }
-        } catch (e) {
-            // Permission denied or not found usually throws here
-            // console.log(`❌ Error leyendo '${colName}':`, e.code); 
-        }
-    }
-
-    if (rawTasks.length === 0) {
-        console.warn("⚠️ No se encontraron datos en ninguna colección conocida.");
-        showToast("No se encontraron registros de tiempo", true);
-        return;
-    }
-
-    // Process Data
     try {
-        const tasksByUser = {};
+        // The other app stores EVERYTHING in a single document
+        const docRef = doc(trackerDb, "studio_tracker_v3", "main_db");
+        const docSnap = await getDoc(docRef);
 
-        // Debug first item
-        console.log("🐛 DEBUG TAREA:", rawTasks[0]);
+        if (!docSnap.exists()) {
+            console.error("❌ No se encontró el documento 'main_db'");
+            showToast("Error: DB TimeTracker vacía", true);
+            return;
+        }
 
-        rawTasks.forEach((data) => {
-            // Heuristic to find User Name
-            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever || data.responsable || data.Usuario;
+        const data = docSnap.data();
+        const allTasksMap = data.tasks || {}; // { "Mitchell Pous": [...], "Rufino...": [...] }
 
-            if (userName) {
-                const cleanName = String(userName).trim();
-                if (!tasksByUser[cleanName]) tasksByUser[cleanName] = [];
-                tasksByUser[cleanName].push(data);
-            }
-        });
-
-        console.log("🔑 Nombres en BD:", Object.keys(tasksByUser));
+        console.log("✅ Datos recibidos. Usuarios:", Object.keys(allTasksMap));
 
         // 2. Calculate Hours per Team Member
         // Hardcoded "Enero" - in future make dynamic
-        const currentMonthName = "Enero";
+        const currentMonthName = "Enero"; // Matches "MONTHS" array in source code
 
         let updatesFound = false;
 
         team.forEach(member => {
-            let totalHours = 0;
-            const validNames = NAME_MAPPING[member.name] || [member.name];
+            // Find key in the big map
+            const trackerKey = NAME_MAPPING[member.name];
+            if (!trackerKey) {
+                console.warn(`⚠️ No hay mapeo definido para ${member.name}`);
+                return;
+            }
 
-            validNames.forEach(alias => {
-                const userTasks = tasksByUser[alias] || [];
+            const userTasks = allTasksMap[trackerKey] || [];
 
-                // Filter by Month
-                const monthTasks = userTasks.filter(t => {
-                    const m = t.month || t.mes || t.Month || t.Mes || "";
-                    return m.toLowerCase() === currentMonthName.toLowerCase();
-                });
+            // Filter by Month
+            const monthTasks = userTasks.filter(t => t.month === currentMonthName);
 
-                // Sum Hours
-                const sum = monthTasks.reduce((acc, t) => {
-                    const h = t.hours || t.cant_horas || t.totalHours || t.horas || t.Horas || 0;
-                    return acc + parseFloat(String(h));
-                }, 0);
+            // Sum Hours
+            // Source code uses "hours" field (number or string)
+            const totalHours = monthTasks.reduce((acc, t) => {
+                const h = parseFloat(String(t.hours || 0));
+                return acc + (isNaN(h) ? 0 : h);
+            }, 0);
 
-                totalHours += sum;
-            });
-
-            console.log(`📊 ${member.name}: ${totalHours.toFixed(1)}h`);
+            console.log(`📊 ${member.name} -> ${trackerKey}: ${totalHours.toFixed(1)}h (${currentMonthName})`);
 
             if (member.hours !== totalHours) {
                 member.hours = totalHours;
@@ -197,13 +153,14 @@ async function syncRealTimeHours(trackerDb) {
         if (updatesFound) {
             renderApp();
             saveToCloud(team);
-            showToast(`Sincronizado (Fuente: ${foundCollection})`, false);
+            showToast("Sincronizado con TimeTracker V3", false);
         } else {
             console.log("ℹ️ Datos verificados, todo al día.");
         }
 
     } catch (error) {
-        console.error("Processing Error:", error);
+        console.error("Single Doc Sync Error:", error);
+        showToast("Error de Estructura de Datos", true);
     }
 }
 
