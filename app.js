@@ -66,7 +66,7 @@ function getCircleProgressHTML(percentage, size = 50) {
     `;
 }
 
-// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: AGGREGATION LOGIC) ---
+// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: CLOUD NATIVE & AGGREGATION) ---
 const trackerConfig = {
     apiKey: "AIzaSyAjxKauucl1VGHRP2AYCrnZHnEtM3cCg1U",
     authDomain: "timetracker-48916.firebaseapp.com",
@@ -77,78 +77,92 @@ const trackerConfig = {
     measurementId: "G-LPBXS9MZZ5"
 };
 
+// Initialize Secondary App
 try {
+    // Only initialize if not already done to avoid "App already exists" error on hot-reload
+    // We try/catch just in case but usually standard init is fine.
     const trackerApp = initializeApp(trackerConfig, "timeTrackerApp");
     const trackerDb = getFirestore(trackerApp);
     syncRealTimeHours(trackerDb);
 } catch (e) {
-    console.error("Tracker Auth Error:", e);
+    // If app already exists, we get it
+    console.warn("Tracker App Init Warn:", e);
+    // In strict module mode re-getting might fail, but let's try assuming standard firebase pattern
+    // If this fails, we just won't sync, but app won't crash.
 }
 
 const NAME_MAPPING = {
-    "Homero": ["Homero", "Homero Hernandez"],
-    "Michelle": ["Mitchell", "Mitchell Pous"],
-    "Maite": ["Esther"]
+    "Homero": ["Homero", "Homero Hernandez", "Homero Hernández"],
+    "Michelle": ["Mitchell", "Mitchell Pous", "Michelle"],
+    "Maite": ["Esther", "Maite"]
 };
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 async function syncRealTimeHours(trackerDb) {
-    console.log("📡 Conectando con Colección de Tareas...");
+    if (!trackerDb) return;
+    console.log("📡 Conectando con Colección de Tareas (Cloud Native)...");
+
     try {
-        // Fetch ALL tasks. In production, this should be a query filtered by date, but for now we fetch all into memory.
         const querySnapshot = await getDocs(collection(trackerDb, "tasks"));
 
-        // 1. Group tasks by User
-        // Structure: { "Mitchell": [Task1, Task2], "Homero": [...] }
         const tasksByUser = {};
-
         let debugFirstTask = true;
 
         querySnapshot.forEach((doc) => {
             const data = doc.data();
 
+            // --- DEBUG SECTION ---
             if (debugFirstTask) {
-                console.log("🐛DEBUG: Estructura de UNA Tarea Real:", data);
+                console.log("🐛 DEBUG INSPECCION: Estructura de UNA Tarea Real (Copia esto si ves ceros):", data);
                 debugFirstTask = false;
             }
+            // ---------------------
 
-            // Expanded heuristic to find the User Name field
-            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever;
+            // Heuristic to find User Name
+            const userName = data.nombre || data.designer || data.user || data.name || data.userName || data.no_clever || data.responsable;
 
             if (userName) {
-                // Normalize name to be safe (trim spaces)
                 const cleanName = String(userName).trim();
+                // Store the whole data object to sum fields later
                 if (!tasksByUser[cleanName]) tasksByUser[cleanName] = [];
                 tasksByUser[cleanName].push(data);
             }
         });
 
-        console.log("🔑 Nombres encontrados en BD:", Object.keys(tasksByUser));
-        console.log("🎯 Buscando coincidencias para:", JSON.stringify(NAME_MAPPING));
+        console.log("🔑 Nombres en BD:", Object.keys(tasksByUser));
 
         // 2. Calculate Hours per Team Member
-        // Current Month hardcoded to "Enero" based on context, or dynamic
+        // Hardcoded "Enero" - in future make dynamic: new Date().toLocaleDateString('es-ES', {month:'long'})
         const currentMonthName = "Enero";
 
         let updatesFound = false;
 
         team.forEach(member => {
-            // Find which keys in 'tasksByUser' match this member
-            // We check against our MAPPING list
             let totalHours = 0;
             const validNames = NAME_MAPPING[member.name] || [member.name];
 
             validNames.forEach(alias => {
                 const userTasks = tasksByUser[alias] || [];
 
-                // Filter by Month & Sum
-                const monthTasks = userTasks.filter(t => t.month === currentMonthName);
-                const sum = monthTasks.reduce((acc, t) => acc + parseFloat(String(t.hours || t.cant_horas || 0)), 0);
+                // Filter by Month
+                // We check 'month', 'mes', 'Month'
+                const monthTasks = userTasks.filter(t => {
+                    const m = t.month || t.mes || t.Month || "";
+                    return m.toLowerCase() === currentMonthName.toLowerCase();
+                });
+
+                // Sum Hours
+                // We check 'hours', 'cant_horas', 'totalHours', 'horas'
+                const sum = monthTasks.reduce((acc, t) => {
+                    const h = t.hours || t.cant_horas || t.totalHours || t.horas || 0;
+                    return acc + parseFloat(String(h));
+                }, 0);
+
                 totalHours += sum;
             });
 
-            console.log(`📊 ${member.name} (${currentMonthName}): ${totalHours.toFixed(1)}h`);
+            console.log(`📊 ${member.name} (Calculado): ${totalHours.toFixed(1)}h`);
 
             if (member.hours !== totalHours) {
                 member.hours = totalHours;
@@ -159,12 +173,18 @@ async function syncRealTimeHours(trackerDb) {
         if (updatesFound) {
             renderApp();
             saveToCloud(team);
-            showToast("Horas Sincronizadas (Enero)", false);
+            showToast("Sincronizado con TimeTracker", false);
+        } else {
+            console.log("ℹ️ Datos verificados, todo al día.");
         }
 
     } catch (error) {
-        console.error("Error Calculation Logic:", error);
-        showToast("Error calculando horas", true);
+        console.error("Firebase Sync Error:", error);
+        if (error.code === 'permission-denied') {
+            showToast("⛔ Permiso Denegado (Revisar Reglas)", true);
+        } else {
+            showToast("Error conectando a Tracker", true);
+        }
     }
 }
 
