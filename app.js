@@ -66,8 +66,7 @@ function getCircleProgressHTML(percentage, size = 50) {
     `;
 }
 
-// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: CLOUD NATIVE) ---
-// Config provided by user for "Time Tracker" project
+// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: AGGREGATION LOGIC) ---
 const trackerConfig = {
     apiKey: "AIzaSyAjxKauucl1VGHRP2AYCrnZHnEtM3cCg1U",
     authDomain: "timetracker-48916.firebaseapp.com",
@@ -78,79 +77,84 @@ const trackerConfig = {
     measurementId: "G-LPBXS9MZZ5"
 };
 
-// Initialize Secondary App (Named instance to avoid conflict with main app)
 try {
     const trackerApp = initializeApp(trackerConfig, "timeTrackerApp");
     const trackerDb = getFirestore(trackerApp);
-
-    // Initial Sync
     syncRealTimeHours(trackerDb);
 } catch (e) {
     console.error("Tracker Auth Error:", e);
 }
 
 const NAME_MAPPING = {
-    "Homero": "Homero",
-    "Michelle": "Mitchell",
-    "Maite": "Esther"        // Assuming Esther matches Maite based on context
+    "Homero": ["Homero", "Homero Hernandez"],
+    "Michelle": ["Mitchell", "Mitchell Pous"],
+    "Maite": ["Esther"]
 };
 
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 async function syncRealTimeHours(trackerDb) {
-    console.log("📡 Conectando con Time Tracker DB...");
+    console.log("📡 Conectando con Colección de Tareas...");
     try {
-        // We try reading from 'users' collection which is standard. 
-        // If the collection is named differently (e.g. 'employees'), this needs to be updated.
-        const querySnapshot = await getDocs(collection(trackerDb, "users"));
+        // Fetch ALL tasks. In production, this should be a query filtered by date, but for now we fetch all into memory.
+        const querySnapshot = await getDocs(collection(trackerDb, "tasks"));
+
+        // 1. Group tasks by User
+        // Structure: { "Mitchell": [Task1, Task2], "Homero": [...] }
+        const tasksByUser = {};
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            // We assume the field containing the name is 'designer', 'user', 'name' or similar.
+            // Based on user info, keys are likely names.
+            // Let's inspect the data structure in console to debug if needed
+            const userName = data.designer || data.user || data.name || data.userName;
+            if (userName) {
+                if (!tasksByUser[userName]) tasksByUser[userName] = [];
+                tasksByUser[userName].push(data);
+            }
+        });
+
+        console.log("Tasks Grouped:", Object.keys(tasksByUser));
+
+        // 2. Calculate Hours per Team Member
+        // Current Month hardcoded to "Enero" based on context, or dynamic
+        const currentMonthName = "Enero";
 
         let updatesFound = false;
 
-        // Create a map of TrackerName -> Data for O(1) lookup
-        const trackerData = {};
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            // Assuming the doc has 'name' and 'totalMonthlyHours' or similar
-            // We'll log the data structure first to be sure in console
-            console.log("Tracker Doc:", data);
-            if (data.name) trackerData[data.name] = data;
-        });
-
         team.forEach(member => {
-            const targetName = NAME_MAPPING[member.name] || member.name;
-            const tData = trackerData[targetName];
+            // Find which keys in 'tasksByUser' match this member
+            // We check against our MAPPING list
+            let totalHours = 0;
+            const validNames = NAME_MAPPING[member.name] || [member.name];
 
-            if (tData) {
-                // Look for a likely field for hours. Adjust 'accumulated_hours' based on real DB field
-                // Common schemes: 'hours', 'totalHours', 'monthlyHours'
-                // We'll try to find a numeric field that looks like hours
-                const foundHours = tData.hours || tData.totalHours || tData.accumulated_hours || 0;
+            validNames.forEach(alias => {
+                const userTasks = tasksByUser[alias] || [];
 
-                console.log(`✅ ${member.name} -> ${targetName}: ${foundHours}h`);
+                // Filter by Month & Sum
+                const monthTasks = userTasks.filter(t => t.month === currentMonthName);
+                const sum = monthTasks.reduce((acc, t) => acc + parseFloat(String(t.hours || t.cant_horas || 0)), 0);
+                totalHours += sum;
+            });
 
-                if (member.hours !== foundHours) {
-                    member.hours = foundHours;
-                    updatesFound = true;
-                }
-            } else {
-                console.warn(`⚠️ ${member.name}: No encontrado en colección 'users' de Tracker.`);
+            console.log(`📊 ${member.name} (${currentMonthName}): ${totalHours.toFixed(1)}h`);
+
+            if (member.hours !== totalHours) {
+                member.hours = totalHours;
+                updatesFound = true;
             }
         });
 
         if (updatesFound) {
             renderApp();
-            saveToCloud(team); // Save the fetched hours to our local DB cache
-            showToast("Sincronizado con BD Real", false);
+            saveToCloud(team);
+            showToast("Horas Sincronizadas (Enero)", false);
         }
 
     } catch (error) {
-        console.error("Error al leer Tracker DB:", error);
-        // Fallback: If 'users' fails, maybe try 'employees' or show error
-        if (error.code === 'permission-denied') {
-            showToast("Error de Permisos en Tracker DB", true);
-        } else {
-            showToast("Error conectando a Tracker DB", true);
-        }
+        console.error("Error Calculation Logic:", error);
+        showToast("Error calculando horas", true);
     }
 }
 
