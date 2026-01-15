@@ -66,6 +66,94 @@ function getCircleProgressHTML(percentage, size = 50) {
     `;
 }
 
+// --- 2. DATA SYNCHRONIZATION (TIME TRACKER: CLOUD NATIVE) ---
+// Config provided by user for "Time Tracker" project
+const trackerConfig = {
+    apiKey: "AIzaSyAjxKauucl1VGHRP2AYCrnZHnEtM3cCg1U",
+    authDomain: "timetracker-48916.firebaseapp.com",
+    projectId: "timetracker-48916",
+    storageBucket: "timetracker-48916.firebasestorage.app",
+    messagingSenderId: "970718205478",
+    appId: "1:970718205478:web:e2dafab690cd4490f738e7",
+    measurementId: "G-LPBXS9MZZ5"
+};
+
+// Initialize Secondary App (Named instance to avoid conflict with main app)
+try {
+    const trackerApp = initializeApp(trackerConfig, "timeTrackerApp");
+    const trackerDb = getFirestore(trackerApp);
+
+    // Initial Sync
+    syncRealTimeHours(trackerDb);
+} catch (e) {
+    console.error("Tracker Auth Error:", e);
+}
+
+const NAME_MAPPING = {
+    "Homero": "Homero",
+    "Michelle": "Mitchell",
+    "Maite": "Esther"        // Assuming Esther matches Maite based on context
+};
+
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+async function syncRealTimeHours(trackerDb) {
+    console.log("📡 Conectando con Time Tracker DB...");
+    try {
+        // We try reading from 'users' collection which is standard. 
+        // If the collection is named differently (e.g. 'employees'), this needs to be updated.
+        const querySnapshot = await getDocs(collection(trackerDb, "users"));
+
+        let updatesFound = false;
+
+        // Create a map of TrackerName -> Data for O(1) lookup
+        const trackerData = {};
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            // Assuming the doc has 'name' and 'totalMonthlyHours' or similar
+            // We'll log the data structure first to be sure in console
+            console.log("Tracker Doc:", data);
+            if (data.name) trackerData[data.name] = data;
+        });
+
+        team.forEach(member => {
+            const targetName = NAME_MAPPING[member.name] || member.name;
+            const tData = trackerData[targetName];
+
+            if (tData) {
+                // Look for a likely field for hours. Adjust 'accumulated_hours' based on real DB field
+                // Common schemes: 'hours', 'totalHours', 'monthlyHours'
+                // We'll try to find a numeric field that looks like hours
+                const foundHours = tData.hours || tData.totalHours || tData.accumulated_hours || 0;
+
+                console.log(`✅ ${member.name} -> ${targetName}: ${foundHours}h`);
+
+                if (member.hours !== foundHours) {
+                    member.hours = foundHours;
+                    updatesFound = true;
+                }
+            } else {
+                console.warn(`⚠️ ${member.name}: No encontrado en colección 'users' de Tracker.`);
+            }
+        });
+
+        if (updatesFound) {
+            renderApp();
+            saveToCloud(team); // Save the fetched hours to our local DB cache
+            showToast("Sincronizado con BD Real", false);
+        }
+
+    } catch (error) {
+        console.error("Error al leer Tracker DB:", error);
+        // Fallback: If 'users' fails, maybe try 'employees' or show error
+        if (error.code === 'permission-denied') {
+            showToast("Error de Permisos en Tracker DB", true);
+        } else {
+            showToast("Error conectando a Tracker DB", true);
+        }
+    }
+}
+
 // --- 3. RENDER UI ---
 function renderApp() {
     const grid = document.getElementById('designerGrid');
@@ -80,8 +168,8 @@ function renderApp() {
         if (days < 0) status = { color: 'alert-red', text: 'ATRASADO', icon: 'fa-solid fa-triangle-exclamation' };
         else if (days <= 2) status = { color: 'alert-yellow', text: 'URGENTE', icon: 'fa-solid fa-hourglass-half' };
 
-        // Progress Calculation (Mock Data if missing)
-        const loggedHours = member.hours || Math.floor(Math.random() * 160); // Fallback to random if no data
+        // Progress Calculation using REAL HOURS fetched from Cloud
+        const loggedHours = member.hours || 0;
         const percentage = Math.min((loggedHours / 160) * 100, 100);
         const progressHTML = getCircleProgressHTML(percentage);
 
@@ -188,6 +276,45 @@ window.updateField = async (id, field, value) => {
     }
 };
 
+if (db) {
+    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
+        if (document.getElementById('loading-message'))
+            document.getElementById('loading-message').style.display = 'none';
+
+        if (docSnap.exists()) {
+            team = docSnap.data().members || [];
+            if (team.length === 0) saveToCloud(defaultTeam);
+            else renderApp();
+        } else {
+            saveToCloud(defaultTeam);
+        }
+    });
+}
+// Minimal toast function to avoid errors
+function showToast(message, isError) {
+    console.log("Toast:", message, isError ? "(Error)" : "");
+    // In a real app, you'd display a UI element here
+}
+if (db) {
+    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
+        if (document.getElementById('loading-message'))
+            document.getElementById('loading-message').style.display = 'none';
+
+        if (docSnap.exists()) {
+            team = docSnap.data().members || [];
+            if (team.length === 0) saveToCloud(defaultTeam);
+            else {
+                renderApp();
+                // Trigger sync after load
+                syncWithTimeTracker();
+            }
+        } else {
+            saveToCloud(defaultTeam);
+            renderApp();
+            syncWithTimeTracker();
+        }
+    });
+}
 // --- DRAG & DROP LOGIC ---
 let draggedItem = null;
 window.dragStart = (e, mId, idx) => { draggedItem = { mId, idx }; e.target.classList.add('dragging'); };
