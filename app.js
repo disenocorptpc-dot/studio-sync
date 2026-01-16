@@ -119,11 +119,10 @@ if (db) {
             document.getElementById('loading-message').style.display = 'none';
 
         if (docSnap.exists()) {
-            // FORCE RESTORE: Ignore Cloud Data for now, overwrite with Recovered Data
-            // team = docSnap.data().members || [];
-            team = defaultTeam;
-            saveToCloud(team); // FORCE PUSH TO CLOUD
-
+            team = docSnap.data().members || [];
+            if (team.length === 0) {
+                team = defaultTeam;
+            }
             renderApp();
 
             // CRITICAL FIX: Sync hours ONLY after team data is loaded
@@ -132,8 +131,8 @@ if (db) {
         } else {
             console.warn("No cloud data found. Using local defaults.");
             team = defaultTeam;
-            // ONE-TIME RESTORE: Saving recovered data to cloud
-            saveToCloud(defaultTeam);
+            // DISABLED AUTO-OVERWRITE FOR SAFETY:
+            // saveToCloud(defaultTeam); 
             renderApp();
         }
     }, (error) => {
