@@ -343,8 +343,23 @@ function renderApp() {
 
 // --- 4. GLOBAL HELPERS ---
 async function saveToCloud(newData) {
-    try { await setDoc(doc(db, "studiosync", TEAM_DOC_ID), { members: newData }); }
-    catch (e) { console.error(e); }
+    // Sanitize data: Firestore arrays cannot contain objects with 'undefined' values
+    const sanitized = newData.map(member => {
+        const clean = { ...member };
+        Object.keys(clean).forEach(key => {
+            if (clean[key] === undefined) clean[key] = null;
+        });
+        // Ensure pending is a valid array without empty slots
+        if (Array.isArray(clean.pending)) {
+            clean.pending = clean.pending.filter(p => p !== undefined && p !== null);
+        } else {
+            clean.pending = [];
+        }
+        return clean;
+    });
+
+    try { await setDoc(doc(db, "studiosync", TEAM_DOC_ID), { members: sanitized }); }
+    catch (e) { console.error("Save Error:", e); }
 }
 
 window.updateField = async (id, field, value) => {
