@@ -23,10 +23,23 @@ try {
 }
 
 // --- 2. DATA ---
+// --- 2. DATA ---
 const defaultTeam = [
-    { id: "h1", name: "Homero", role: "Diseñador Industrial", pending: ["Stand Expo"] },
-    { id: "m1", name: "Maite", role: "Diseñador Ind.", pending: ["Empaque Eco"] },
-    { id: "x1", name: "Michelle", role: "Diseñadora 3D", pending: ["Animación"] }
+    {
+        id: "h1", name: "Homero", role: "Diseñador Industrial", pending: ["Stand Expo"],
+        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
+        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Homero"
+    },
+    {
+        id: "m1", name: "Maite", role: "Diseñador Ind.", pending: ["Empaque Eco"],
+        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
+        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maite"
+    },
+    {
+        id: "x1", name: "Michelle", role: "Diseñadora 3D", pending: ["Animación"],
+        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
+        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michelle"
+    }
 ];
 let team = [];
 
@@ -37,11 +50,21 @@ if (db) {
 
         if (docSnap.exists()) {
             team = docSnap.data().members || [];
-            if (team.length === 0) saveToCloud(defaultTeam);
-            else renderApp();
+            if (team.length === 0) {
+                // Don't auto-save defaults, just use them for display if needed
+                team = defaultTeam;
+            }
+            renderApp();
         } else {
-            saveToCloud(defaultTeam);
+            console.warn("No cloud data found. Using local defaults.");
+            team = defaultTeam;
+            // DISABLED AUTO-OVERWRITE FOR SAFETY:
+            // saveToCloud(defaultTeam); 
+            renderApp();
         }
+    }, (error) => {
+        console.error("Error reading Cloud Data:", error);
+        showToast("Error de conexión", true);
     });
 }
 
