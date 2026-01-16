@@ -43,30 +43,7 @@ const defaultTeam = [
 ];
 let team = [];
 
-if (db) {
-    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
-        if (document.getElementById('loading-message'))
-            document.getElementById('loading-message').style.display = 'none';
-
-        if (docSnap.exists()) {
-            team = docSnap.data().members || [];
-            if (team.length === 0) {
-                // Don't auto-save defaults, just use them for display if needed
-                team = defaultTeam;
-            }
-            renderApp();
-        } else {
-            console.warn("No cloud data found. Using local defaults.");
-            team = defaultTeam;
-            // DISABLED AUTO-OVERWRITE FOR SAFETY:
-            // saveToCloud(defaultTeam); 
-            renderApp();
-        }
-    }, (error) => {
-        console.error("Error reading Cloud Data:", error);
-        showToast("Error de conexión", true);
-    });
-}
+// (Original onSnapshot removed - using consolidated one below)
 
 // --- helper: Circular Progress SVG Generator (Vanilla Port) ---
 function getCircleProgressHTML(percentage, size = 50) {
@@ -100,13 +77,42 @@ const trackerConfig = {
     measurementId: "G-LPBXS9MZZ5"
 };
 
-// Initialize Secondary App
+// --- 2. DATA ---
+// ... (defaultTeam definition remains the same)
+
+// Initialize Secondary App (Moved globally but called later)
+let trackerDb;
 try {
     const trackerApp = initializeApp(trackerConfig, "timeTrackerApp");
-    const trackerDb = getFirestore(trackerApp);
-    syncRealTimeHours(trackerDb);
+    trackerDb = getFirestore(trackerApp);
 } catch (e) {
     console.warn("Tracker App Init Warn:", e);
+}
+
+if (db) {
+    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
+        if (document.getElementById('loading-message'))
+            document.getElementById('loading-message').style.display = 'none';
+
+        if (docSnap.exists()) {
+            team = docSnap.data().members || [];
+            if (team.length === 0) {
+                team = defaultTeam;
+            }
+            renderApp();
+
+            // CRITICAL FIX: Sync hours ONLY after team data is loaded
+            if (trackerDb) syncRealTimeHours(trackerDb);
+
+        } else {
+            console.warn("No cloud data found. Using local defaults.");
+            team = defaultTeam;
+            renderApp();
+        }
+    }, (error) => {
+        console.error("Error reading Cloud Data:", error);
+        showToast("Error de conexión", true);
+    });
 }
 
 // Mapping: Studio Sync Name -> Time Tracker Key
@@ -342,26 +348,7 @@ function showToast(message, isError) {
     console.log("Toast:", message, isError ? "(Error)" : "");
     // In a real app, you'd display a UI element here
 }
-if (db) {
-    onSnapshot(doc(db, "studiosync", TEAM_DOC_ID), (docSnap) => {
-        if (document.getElementById('loading-message'))
-            document.getElementById('loading-message').style.display = 'none';
-
-        if (docSnap.exists()) {
-            team = docSnap.data().members || [];
-            if (team.length === 0) saveToCloud(defaultTeam);
-            else {
-                renderApp();
-                // Trigger sync after load - accessing global instance if available, or just waiting for the init block above
-                // Note: The logic above already calls syncRealTimeHours on load.
-                // We can remove the old call here or make sure it uses the new db.
-                // Since `trackerDb` is scoped above, we'll let the top-level init handle it for now.
-            }
-        } else {
-            saveToCloud(defaultTeam);
-        }
-    });
-}
+// (Duplicate onSnapshot removed)
 // --- DRAG & DROP LOGIC ---
 let draggedItem = null;
 window.dragStart = (e, mId, idx) => { draggedItem = { mId, idx }; e.target.classList.add('dragging'); };
