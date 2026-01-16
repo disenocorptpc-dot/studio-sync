@@ -119,10 +119,11 @@ if (db) {
             document.getElementById('loading-message').style.display = 'none';
 
         if (docSnap.exists()) {
-            team = docSnap.data().members || [];
-            if (team.length === 0) {
-                team = defaultTeam;
-            }
+            // FORCE RESTORE: Ignore Cloud Data for now, overwrite with Recovered Data
+            // team = docSnap.data().members || [];
+            team = defaultTeam;
+            saveToCloud(team); // FORCE PUSH TO CLOUD
+
             renderApp();
 
             // CRITICAL FIX: Sync hours ONLY after team data is loaded
