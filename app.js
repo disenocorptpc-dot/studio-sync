@@ -24,21 +24,45 @@ try {
 
 // --- 2. DATA ---
 // --- 2. DATA ---
+// RECOVERED DATA FROM SCREENSHOT (16/01/2026)
 const defaultTeam = [
     {
-        id: "h1", name: "Homero", role: "Diseñador Industrial", pending: ["Stand Expo"],
-        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
-        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Homero"
+        id: "h1", name: "Homero", role: "Diseñador Industrial",
+        pending: [
+            "Cambios Logos MPPC",
+            "Señalización Baglioni",
+            "Diseño de Carritos de comida",
+            "Señalización Ciudad palace"
+        ],
+        project: "Sin Asignar", phase: "Dirección N/A", client: "Cliente",
+        deadline: new Date().toISOString().split('T')[0],
+        hours: 50, // Snapshot value
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Homero" // Placeholder until real URL is restored if available
     },
     {
-        id: "m1", name: "Maite", role: "Diseñador Ind.", pending: ["Empaque Eco"],
-        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
-        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maite"
+        id: "m1", name: "Maite", role: "Diseñador Ind.",
+        pending: [
+            "Señalización Baglioni",
+            "Ronda de Buffets MPPC",
+            "Señalización Buffet Caribeño",
+            "Corrección antifaces LBcab"
+        ],
+        project: "Sin Asignar", phase: "Dirección N/A", client: "Cliente",
+        deadline: new Date().toISOString().split('T')[0],
+        hours: 0,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maite&hair=long&skinColor=brown" // Attempt to match memoji
     },
     {
-        id: "x1", name: "Michelle", role: "Diseñadora 3D", pending: ["Animación"],
-        project: "Sin Asignar", phase: "N/A", client: "Cliente", deadline: new Date().toISOString().split('T')[0],
-        hours: 0, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michelle"
+        id: "x1", name: "Michelle", role: "Diseñadora 3D",
+        pending: [
+            "Nuevo totem para MPPC Wonderwoods",
+            "Diseño de Catrin y nvas Catrinas",
+            "Postres Wonderwoods"
+        ],
+        project: "Sin Asignar", phase: "Dirección N/A", client: "Cliente",
+        deadline: new Date().toISOString().split('T')[0],
+        hours: 200, // Snapshot value
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michelle&hair=long&skinColor=light" // Attempt to match memoji
     }
 ];
 let team = [];
@@ -107,6 +131,8 @@ if (db) {
         } else {
             console.warn("No cloud data found. Using local defaults.");
             team = defaultTeam;
+            // ONE-TIME RESTORE: Saving recovered data to cloud
+            saveToCloud(defaultTeam);
             renderApp();
         }
     }, (error) => {
