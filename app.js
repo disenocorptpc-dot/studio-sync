@@ -493,11 +493,42 @@ window.handleSave = async (e) => {
             const reader = new FileReader();
 
             reader.onload = async function (e) {
-                // Resize image to avoid huge payload? For now raw base64.
-                // Ideally we should resize here using canvas, but let's start simple.
-                team[idx].avatar = e.target.result;
-                await saveToCloud(team);
-                window.closeModal();
+                // Resize image to avoid huge payload (Firestore limit 1MB)
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = async () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // Set max dimensions (e.g., 150x150 for avatar)
+                    const MAX_WIDTH = 150;
+                    const MAX_HEIGHT = 150;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Get compressed base64
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+                    team[idx].avatar = dataUrl;
+                    await saveToCloud(team);
+                    window.closeModal();
+                };
             };
 
             reader.readAsDataURL(file);
