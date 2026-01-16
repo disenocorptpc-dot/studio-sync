@@ -470,6 +470,25 @@ window.handleSave = async (e) => {
         team[idx].deadline = document.getElementById('editDate').value;
         team[idx].vacationStart = document.getElementById('editVacationStart').value;
         team[idx].vacationEnd = document.getElementById('editVacationEnd').value;
+
+        // Handle Photo Upload (Base64)
+        const fileInput = document.getElementById('editPhoto');
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function (e) {
+                // Resize image to avoid huge payload? For now raw base64.
+                // Ideally we should resize here using canvas, but let's start simple.
+                team[idx].avatar = e.target.result;
+                await saveToCloud(team);
+                window.closeModal();
+            };
+
+            reader.readAsDataURL(file);
+            return; // Exit here, save happens in onload
+        }
+
         await saveToCloud(team);
         window.closeModal();
     }
